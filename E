@@ -158,10 +158,19 @@ local originalProperties = {}
 
 -- Stores references to modified parts
 local activeHitboxes = {}
+local playerStates = {} -- Track player alive/dead states
+
+-- Function to check if player is alive
+local function isPlayerAlive(character)
+    if not character then return false end
+    local humanoid = character:FindFirstChildOfClass("Humanoid")
+    return humanoid and humanoid.Health > 0
+end
 
 -- Main hitbox expansion function
 local function expandHitboxes(character)
     if not character or not isEnemy(Players:GetPlayerFromCharacter(character)) then return end
+    if not isPlayerAlive(character) then return end -- Don't expand if dead
 
     -- Only modify HRP and Head
     local hrp = character:FindFirstChild("HumanoidRootPart")
@@ -216,12 +225,69 @@ local function resetHitboxes(character)
     end
 end
 
+-- Track player state changes
+local function trackPlayerState(player)
+    if not player then return end
+    if playerStates[player] then return end -- Already tracking
+    
+    playerStates[player] = {
+        Connection = nil,
+        Alive = false
+    }
+    
+    local function onCharacterAdded(character)
+        local humanoid = character:WaitForChild("Humanoid", 2)
+        if not humanoid then return end
+        
+        -- Update state when health changes
+        local function updateState()
+            local nowAlive = humanoid.Health > 0
+            if playerStates[player].Alive ~= nowAlive then
+                playerStates[player].Alive = nowAlive
+                if hitboxEnabled then
+                    if nowAlive then
+                        expandHitboxes(character)
+                    else
+                        resetHitboxes(character)
+                    end
+                end
+            end
+        end
+        
+        -- Initial state
+        updateState()
+        
+        -- Connect to health changes
+        if playerStates[player].Connection then
+            playerStates[player].Connection:Disconnect()
+        end
+        playerStates[player].Connection = humanoid:GetPropertyChangedSignal("Health"):Connect(updateState)
+        
+        -- Connect to death
+        humanoid.Died:Connect(function()
+            playerStates[player].Alive = false
+            if hitboxEnabled then
+                resetHitboxes(character)
+            end
+        end)
+    end
+    
+    player.CharacterAdded:Connect(onCharacterAdded)
+    if player.Character then
+        onCharacterAdded(player.Character)
+    end
+end
+
 -- Apply to all players
 local function updateAllHitboxes()
     for _, player in ipairs(Players:GetPlayers()) do
         if player.Character then
             if hitboxEnabled then
-                expandHitboxes(player.Character)
+                if isPlayerAlive(player.Character) then
+                    expandHitboxes(player.Character)
+                else
+                    resetHitboxes(player.Character)
+                end
             else
                 resetHitboxes(player.Character)
             end
@@ -231,11 +297,34 @@ end
 
 -- Player tracking
 Players.PlayerAdded:Connect(function(player)
-    player.CharacterAdded:Connect(function(character)
-        if hitboxEnabled then
-            expandHitboxes(character)
+    trackPlayerState(player)
+end)
+
+-- Initialize for existing players
+for _, player in ipairs(Players:GetPlayers()) do
+    trackPlayerState(player)
+end
+
+-- Auto-update to prevent hitbox reset
+RunService.Heartbeat:Connect(function()
+    if hitboxEnabled then
+        for _, player in ipairs(Players:GetPlayers()) do
+            if player.Character and playerStates[player] then
+                local hrp = player.Character:FindFirstChild("HumanoidRootPart")
+                local head = player.Character:FindFirstChild("Head")
+                
+                -- Only update if player is alive
+                if playerStates[player].Alive then
+                    if hrp and (hrp.Size.X < hitboxSize or hrp.Transparency ~= hitboxTransparency) then
+                        expandHitboxes(player.Character)
+                    end
+                    if head and (head.Size.X < hitboxSize or head.Transparency ~= hitboxTransparency) then
+                        expandHitboxes(player.Character)
+                    end
+                end
+            end
         end
-    end)
+    end
 end)
 
 -- Notification
