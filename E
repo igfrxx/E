@@ -453,20 +453,20 @@ label.Text = "FPS: 0"
 label.Parent = frame
 
 -- FPS Update Loop
-local RunService = game:GetService("RunService")
 local fps = 0
 local counter = 0
 local lastTick = tick()
+local fpsConnection = nil -- Store the connection so we can disconnect it later
 
-RunService.RenderStepped:Connect(function()
-	counter += 1
-	if tick() - lastTick >= 1 then
-		fps = counter
-		counter = 0
-		lastTick = tick()
-		label.Text = "FPS: " .. tostring(fps)
-	end
-end)
+local function updateFPS()
+    counter += 1
+    if tick() - lastTick >= 1 then
+        fps = counter
+        counter = 0
+        lastTick = tick()
+        label.Text = "FPS: " .. tostring(fps)
+    end
+end
 
 -- Notification
 
@@ -920,6 +920,7 @@ local Button = Tab:CreateButton({
     	end
 })
 
+-- FullBright ToggleVariable
 local Lighting = game:GetService("Lighting")
 
 -- Store original lighting settings to restore them later
@@ -932,7 +933,7 @@ local originalSettings = {
 }
 
 local Toggle = Tab:CreateToggle({
-	Name = "FullBright",
+	Name = "fullbright",
 	Description = "Toggle full brightness",
 	CurrentValue = false,
 	Callback = function(Value)
@@ -1129,7 +1130,8 @@ local Tab = Window:CreateTab({
 	ImageSource = "Material",
 	ShowTitle = true -- This will determine whether the big header text in the tab will show
 })
--- Services
+
+-- Aimlock ToggleVariable
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
 local UserInputService = game:GetService("UserInputService")
@@ -1138,49 +1140,67 @@ local Camera = workspace.CurrentCamera
 
 -- Variables
 local aimlockActive = false
-local showCircle = false
+local showCircle = true -- Always show circle when aimlock is active
 local circleSize = 100
 local circleColor = Color3.fromRGB(86, 171, 128)
 local lockedTarget = nil
 local circleDrawing = nil
 
+-- Connections
+local aimlockConnection = nil
+local viewportConnection = nil
+
 -- Create the circle drawing
 local function createCircle()
     if not circleDrawing then
         circleDrawing = Drawing.new("Circle")
+        circleDrawing.Visible = false
+        circleDrawing.Transparency = 1
         circleDrawing.Radius = circleSize
         circleDrawing.Color = circleColor
         circleDrawing.Thickness = 2
         circleDrawing.Position = Vector2.new(Camera.ViewportSize.X/2, Camera.ViewportSize.Y/2)
         circleDrawing.Filled = false
-        circleDrawing.Transparency = 0.8 -- Set default transparency to make it visible
     end
 end
 
--- Update circle visibility and properties
-local function updateCircle()
-    createCircle()
-    if circleDrawing then
-        circleDrawing.Visible = showCircle and aimlockActive
-        circleDrawing.Radius = circleSize
-        circleDrawing.Color = circleColor
-        circleDrawing.Position = Vector2.new(Camera.ViewportSize.X/2, Camera.ViewportSize.Y/2)
-
-        -- Debugging information
-        print("Circle updated - Visible:", circleDrawing.Visible, " Size:", circleSize, " Color:", circleColor)
+-- Smooth circle appearance/disappearance
+local function setCircleVisibility(visible)
+    if not circleDrawing then return end
+    
+    if visible then
+        circleDrawing.Visible = true
+        for i = 0, 1, 0.1 do
+            circleDrawing.Transparency = 1 - i
+            task.wait(0.01)
+        end
+        circleDrawing.Transparency = 0.2
     else
-        print("Circle not created yet")
+        for i = 0, 1, 0.1 do
+            circleDrawing.Transparency = 0.2 + (i * 0.8)
+            task.wait(0.01)
+        end
+        circleDrawing.Visible = false
     end
 end
 
--- Check if teams are enabled and if player is enemy
+-- Update circle properties
+local function updateCircle()
+    if not circleDrawing then return end
+    
+    circleDrawing.Radius = circleSize
+    circleDrawing.Color = circleColor
+    circleDrawing.Position = Vector2.new(Camera.ViewportSize.X/2, Camera.ViewportSize.Y/2)
+end
+
+-- Check if player is enemy
 local function isEnemy(player)
     if not LocalPlayer.Team then return true end
     if not player.Team then return true end
     return player.Team ~= LocalPlayer.Team
 end
 
--- Find the nearest target within the circle
+-- Find nearest target
 local function findNearestTarget()
     local closestPlayer = nil
     local closestDistance = math.huge
@@ -1188,7 +1208,7 @@ local function findNearestTarget()
 
     for _, player in pairs(Players:GetPlayers()) do
         if player ~= LocalPlayer and player.Character and player.Character:FindFirstChild("HumanoidRootPart") then
-            if aimlockActive and (not LocalPlayer.Team or isEnemy(player)) then
+            if aimlockActive and isEnemy(player) then
                 local rootPart = player.Character.HumanoidRootPart
                 local screenPoint, onScreen = Camera:WorldToViewportPoint(rootPart.Position)
 
@@ -1208,7 +1228,7 @@ local function findNearestTarget()
     return closestPlayer
 end
 
--- Aimlock function
+-- Smooth aimlock function
 local function aimlock()
     if not aimlockActive or not LocalPlayer.Character or not LocalPlayer.Character:FindFirstChild("HumanoidRootPart") then
         lockedTarget = nil
@@ -1222,52 +1242,84 @@ local function aimlock()
         local cameraCFrame = Camera.CFrame
         local direction = (targetRoot.Position - cameraCFrame.Position).Unit
         local newCFrame = CFrame.new(cameraCFrame.Position, cameraCFrame.Position + direction)
-        Camera.CFrame = Camera.CFrame:Lerp(newCFrame, 0.5)
+        Camera.CFrame = Camera.CFrame:Lerp(newCFrame, 0.3) -- Reduced lerp for smoother aim
     end
 end
 
--- Create the toggles and inputs
+-- Initialize
+createCircle()
+
+-- Main loop
+local function mainLoop()
+    if aimlockActive then
+        aimlock()
+    end
+    updateCircle()
+end
+
+-- Cleanup function
+local function cleanup()
+    if aimlockConnection then
+        aimlockConnection:Disconnect()
+        aimlockConnection = nil
+    end
+    if viewportConnection then
+        viewportConnection:Disconnect()
+        viewportConnection = nil
+    end
+    if circleDrawing then
+        circleDrawing:Remove()
+        circleDrawing = nil
+    end
+end
+
+-- Viewport size changed handler
+viewportConnection = Camera:GetPropertyChangedSignal("ViewportSize"):Connect(function()
+    updateCircle()
+end)
+
+-- Create the toggles
 local AimlockToggle = Tab:CreateToggle({
     Name = "Aimlock",
     Description = "Locks onto the nearest target within the circle",
     CurrentValue = false,
     Callback = function(Value)
         aimlockActive = Value
-        if not Value then lockedTarget = nil end
-        updateCircle()
+        if Value then
+            setCircleVisibility(true)
+            if not aimlockConnection then
+                aimlockConnection = RunService.RenderStepped:Connect(mainLoop)
+            end
+        else
+            setCircleVisibility(false)
+            lockedTarget = nil
+        end
     end
 }, "Toggle")
 
-local CircleSizeInput = Tab:CreateInput({
-    Name = "Aimlock circle size",
-    Description = "Set the radius of the aimlock circle",
-    PlaceholderText = "100",
-    CurrentValue = "100",
-    Numeric = true,
-    MaxCharacters = 3,
-    Enter = false,
-    Callback = function(Text)
-        local num = tonumber(Text)
-        if num then
-            circleSize = math.clamp(num, 10, 500)
-            updateCircle()
-        else
-            print("Invalid circle size input")
-        end
+local CircleSizeInput = Tab:CreateSlider({
+    Name = "Aimlock Circle Size",
+    Range = {10, 500},
+    Increment = 5,
+    CurrentValue = circleSize,
+    Callback = function(Value)
+        circleSize = Value
+        updateCircle()
     end
-}, "Input")
+}, "Slider")
 
--- Connect aimlock and update functions
-RunService.RenderStepped:Connect(function()
-    if aimlockActive then
-        aimlock()
+local CircleColorPicker = Tab:CreateColorPicker({
+    Name = "Circle Color",
+    Color = circleColor,
+    Callback = function(Value)
+        circleColor = Value
+        updateCircle()
     end
-    updateCircle()
-end)
+}, "ColorPicker")
 
-Camera:GetPropertyChangedSignal("ViewportSize"):Connect(function()
-    updateCircle()
-end)
+-- Cleanup when player leaves
+game:GetService("UserInputService").WindowFocusReleased:Connect(cleanup)
+LocalPlayer.CharacterRemoving:Connect(cleanup)
 
 local Tab = Window:CreateTab({
     Name = "Hitbox Expander",
@@ -1425,17 +1477,27 @@ local Tab = Window:CreateTab({
 	ShowTitle = true -- This will determine whether the big header text in the tab will show
 })
 
+-- In your Toggle callback:
 local Toggle = Tab:CreateToggle({
-	Name = "Show FPSCounter",
-	Description = nil,
-	CurrentValue = false,
-	Callback = function(Value)
-		if Value then
-			fpsGui.Enabled = true
-		else
-			fpsGui.Enabled = false
-		end
-	end
+    Name = "Show FPSCounter",
+    Description = nil,
+    CurrentValue = false,
+    Callback = function(Value)
+        if Value then
+            fpsGui.Enabled = true
+            -- Only create a new connection if one doesn't exist
+            if not fpsConnection then
+                fpsConnection = RunService.RenderStepped:Connect(updateFPS)
+            end
+        else
+            fpsGui.Enabled = false
+            -- Disconnect the connection if it exists
+            if fpsConnection then
+                fpsConnection:Disconnect()
+                fpsConnection = nil
+            end
+        end
+    end
 }, "Toggle")
 
 local Button = Tab:CreateButton({
