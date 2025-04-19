@@ -121,7 +121,7 @@ local function createEsp(player)
         local billboard = Instance.new("BillboardGui")
         billboard.Name = "SilverWareNameEsp"
         billboard.Adornee = humanoidRootPart
-        billboard.Size = UDim2.new(0, 200, 0, 50)
+        billboard.Size = UDim2.new(0, 50, 0, 20)
         billboard.StudsOffset = Vector3.new(0, 3, 0)
         billboard.AlwaysOnTop = true
         
@@ -919,6 +919,37 @@ local Button = Tab:CreateButton({
          loadstring(game:HttpGet("https://raw.githubusercontent.com/OBFhm5650lol/Jxeybdfkhwnsantilagejbesnjdd/refs/heads/main/Al2", true))()
     	end
 })
+
+local Lighting = game:GetService("Lighting")
+
+-- Store original lighting settings to restore them later
+local originalSettings = {
+	Brightness = Lighting.Brightness,
+	ClockTime = Lighting.ClockTime,
+	FogEnd = Lighting.FogEnd,
+	GlobalShadows = Lighting.GlobalShadows,
+	Ambient = Lighting.Ambient
+}
+
+local Toggle = Tab:CreateToggle({
+	Name = "FullBright",
+	Description = "Toggle full brightness",
+	CurrentValue = false,
+	Callback = function(Value)
+		if Value then
+			Lighting.Brightness = 5
+			Lighting.ClockTime = 12
+			Lighting.FogEnd = 100000
+			Lighting.GlobalShadows = false
+			Lighting.Ambient = Color3.new(1, 1, 1)
+		else
+			-- Restore original lighting settings
+			for prop, val in pairs(originalSettings) do
+				Lighting[prop] = val
+			end
+		end
+	end
+}, "Toggle")
 
 local Button = Tab:CreateButton({
     Name = "Reset WalkSpeed",
