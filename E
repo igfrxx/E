@@ -12,10 +12,15 @@ local RunService = game:GetService("RunService")
 -- StoredVariables
 local teamCheckEnabled = true -- Added this variable to control team checking
 
--- ESP variables
+-- Esp Variable
+local Players = game:GetService("Players")
+local Teams = game:GetService("Teams")
+
+-- Configurations
 local highlightEspEnabled = false
 local nameEspEnabled = false
 local boxEspEnabled = false
+local teamCheckEnabled = true -- Added team check toggle
 local espColor = Color3.fromRGB(86, 171, 128)
 local espObjects = {}
 
@@ -207,28 +212,53 @@ local function clearEsp()
     espObjects = {}
 end
 
+-- Handle player respawns
+local function onCharacterAdded(character, player)
+    if not character or not character.Parent then return end
+    
+    -- Wait for character to fully load
+    local humanoidRootPart = character:WaitForChild("HumanoidRootPart", 5)
+    local humanoid = character:WaitForChild("Humanoid", 5)
+    
+    if not humanoidRootPart or not humanoid then return end
+    
+    -- Check if ESP should be created
+    if highlightEspEnabled or nameEspEnabled or boxEspEnabled then
+        createEsp(player)
+    end
+    
+    -- Handle future respawns
+    humanoid.Died:Connect(function()
+        -- Clean up ESP when player dies
+        if espObjects[player] then
+            for _, obj in pairs(espObjects[player]) do
+                if obj and obj.Parent then
+                    obj:Destroy()
+                end
+            end
+            espObjects[player] = nil
+        end
+    end)
+end
+
 -- Player added/removed connections
 local function onPlayerAdded(player)
     if not player or not player:IsA("Player") then return end
     
-    local function onCharacterAdded(character)
-        if not character or not character.Parent then return end
-        wait(1) -- Wait for character to fully load
-        
-        if highlightEspEnabled or nameEspEnabled or boxEspEnabled then
-            createEsp(player)
-        end
-    end
+    -- Handle initial character
+    player.CharacterAdded:Connect(function(character)
+        onCharacterAdded(character, player)
+    end)
     
-    player.CharacterAdded:Connect(onCharacterAdded)
     if player.Character then
-        coroutine.wrap(onCharacterAdded)(player.Character)
+        coroutine.wrap(onCharacterAdded)(player.Character, player)
     end
 end
 
 local function onPlayerRemoving(player)
     if not player or not player:IsA("Player") then return end
     
+    -- Clean up ESP when player leaves
     if espObjects[player] then
         for _, obj in pairs(espObjects[player]) do
             if obj and obj.Parent then
@@ -239,8 +269,19 @@ local function onPlayerRemoving(player)
     end
 end
 
+-- Initialize for existing players
+for _, player in ipairs(Players:GetPlayers()) do
+    onPlayerAdded(player)
+end
+
+-- Connect future players
 Players.PlayerAdded:Connect(onPlayerAdded)
 Players.PlayerRemoving:Connect(onPlayerRemoving)
+
+-- Initialize for local player (in case they respawn)
+if Players.LocalPlayer and Players.LocalPlayer.Character then
+    onCharacterAdded(Players.LocalPlayer.Character, Players.LocalPlayer)
+end
 
 -- Hitbox Variable
 local hitboxEnabled = false
@@ -866,7 +907,7 @@ function showNotification(title, message, duration, color)
 end
 
 -- Example usage with different animations
-showNotification("Hello :)", "Made By Hmmm5650", 3, Color3.fromRGB(0, 200, 100))
+showNotification("Hello :)", "Made By Hmmm5650", 3, Color3.fromRGB(0, 170, 255))
 
 -- [ LoadsScriptResources ]
 pcall(function()
@@ -900,23 +941,25 @@ local Button = Tab:CreateButton({
 	Name = "Antikick",
 	Description = "Deletes AntiCheat", -- Creates A Description For Users to know what the button does (looks bad if you use it all the time),
     	Callback = function()
-         
+         loadstring(game:HttpGet("https://raw.githubusercontent.com/OBFhm5650lol/AntkickLol/refs/heads/main/Antikicklol"))()
     	end
 })
+
 
 local Button = Tab:CreateButton({
 	Name = "AntiLag",
-	Description = "Lowers Rendering", -- Creates A Description For Users to know what the button does (looks bad if you use it all the time),
+	Description = nil, -- Creates A Description For Users to know what the button does (looks bad if you use it all the time),
     	Callback = function()
-         loadstring(game:HttpGet("https://raw.githubusercontent.com/OBFhm5650lol/Al/refs/heads/main/AntiLag", true))()
+         loadstring(game:HttpGet("https://pastebin.com/raw/8YZ2cc6V"))()
     	end
 })
 
+
 local Button = Tab:CreateButton({
 	Name = "AntiLag 2",
-	Description = "Lowers Rendering And Removes Unnecessary Parts", -- Creates A Description For Users to know what the button does (looks bad if you use it all the time),
+	Description = "Rec, FB", -- Creates A Description For Users to know what the button does (looks bad if you use it all the time),
     	Callback = function()
-         loadstring(game:HttpGet("https://raw.githubusercontent.com/OBFhm5650lol/Jxeybdfkhwnsantilagejbesnjdd/refs/heads/main/Al2", true))()
+         loadstring(game:HttpGet("https://pastebin.com/raw/RuUJqYES", true))()
     	end
 })
 
@@ -933,8 +976,8 @@ local originalSettings = {
 }
 
 local Toggle = Tab:CreateToggle({
-	Name = "fullbright",
-	Description = "Toggle full brightness",
+	Name = "FullBright",
+	Description = nil,
 	CurrentValue = false,
 	Callback = function(Value)
 		if Value then
@@ -1506,4 +1549,11 @@ local Button = Tab:CreateButton({
     	Callback = function()
          loadstring(game:HttpGet('https://raw.githubusercontent.com/qwertyui-is-back/Bloxstrap/refs/heads/main/loader.lua'))()
     	end
+})
+
+Luna:Notification({ 
+	Title = "[ Gui Finished Loading ]",
+	Icon = "notifications_active",
+	ImageSource = "Material",
+	Content = "Have Fun ;)"
 })
