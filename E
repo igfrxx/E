@@ -1044,21 +1044,11 @@ local Button = Tab:CreateButton({
     	end
 })
 
-
 local Button = Tab:CreateButton({
 	Name = "AntiLag",
 	Description = nil, -- Creates A Description For Users to know what the button does (looks bad if you use it all the time),
     	Callback = function()
-         loadstring(game:HttpGet("https://pastebin.com/raw/8YZ2cc6V"))()
-    	end
-})
-
-
-local Button = Tab:CreateButton({
-	Name = "AntiLag 2",
-	Description = "(Rec, FB)", -- Creates A Description For Users to know what the button does (looks bad if you use it all the time),
-    	Callback = function()
-         loadstring(game:HttpGet("https://pastebin.com/raw/RuUJqYES", true))()
+         loadstring(game:HttpGet("https://pastebin.com/raw/zJztwUg1", true))()
     	end
 })
 
@@ -1117,6 +1107,14 @@ local Slider = Tab:CreateSlider({
         end
     end
 }, "WalkSpeedSlider")
+
+local Button = Tab:CreateButton({
+	Name = "Show Console",
+	Description = nil, -- Creates A Description For Users to know what the button does (looks bad if you use it all the time),
+    	Callback = function()
+         game:GetService("StarterGui"):SetCore("DevConsoleVisible",true)
+    	end
+})
 
 local Tab = Window:CreateTab({
 	Name = "Player List",
@@ -1273,304 +1271,367 @@ local Tab = Window:CreateTab({
 	ShowTitle = true -- This will determine whether the big header text in the tab will show
 })
 
--- Aimlock ToggleVariable
-local Players = game:GetService("Players")
-local RunService = game:GetService("RunService")
-local UserInputService = game:GetService("UserInputService")
-local LocalPlayer = Players.LocalPlayer
-local Camera = workspace.CurrentCamera
-
--- Variables
-local aimlockActive = false
-local showCircle = true -- Always show circle when aimlock is active
-local circleSize = 100
-local circleColor = Color3.fromRGB(86, 171, 128)
-local lockedTarget = nil
-local circleDrawing = nil
-local wallCheckEnabled = true -- Added wall check toggle
-local teamCheckEnabled = true -- Added team check toggle
-local aimlockStrength = 0.3 -- Default strength (now adjustable)
-local lastTargetSwitchTime = 0 -- For target switching cooldown
-local targetSwitchCooldown = 0.2 -- Seconds between target switches
-
--- Connections
-local aimlockConnection = nil
-local viewportConnection = nil
-
--- Create the circle drawing
-local function createCircle()
-    if not circleDrawing then
-        circleDrawing = Drawing.new("Circle")
-        circleDrawing.Visible = false
-        circleDrawing.Transparency = 1
-        circleDrawing.Radius = circleSize
-        circleDrawing.Color = circleColor
-        circleDrawing.Thickness = 2
-        circleDrawing.Position = Vector2.new(Camera.ViewportSize.X/2, Camera.ViewportSize.Y/2)
-        circleDrawing.Filled = false
-    end
-end
-
--- Smooth circle appearance/disappearance
-local function setCircleVisibility(visible)
-    if not circleDrawing then return end
-    
-    if visible then
-        circleDrawing.Visible = true
-        for i = 0, 1, 0.1 do
-            circleDrawing.Transparency = 1 - i
-            task.wait(0.01)
-        end
-        circleDrawing.Transparency = 0.2
-    else
-        for i = 0, 1, 0.1 do
-            circleDrawing.Transparency = 0.2 + (i * 0.8)
-            task.wait(0.01)
-        end
-        circleDrawing.Visible = false
-    end
-end
-
--- Update circle properties
-local function updateCircle()
-    if not circleDrawing then return end
-    
-    circleDrawing.Radius = circleSize
-    circleDrawing.Color = circleColor
-    circleDrawing.Position = Vector2.new(Camera.ViewportSize.X/2, Camera.ViewportSize.Y/2)
-end
-
--- Check if player is enemy
-local function isEnemy(player)
-    if not teamCheckEnabled then return true end
-    if not LocalPlayer.Team then return true end
-    if not player.Team then return true end
-    return player.Team ~= LocalPlayer.Team
-end
-
--- Wall check function
-local function isVisible(targetPart)
-    if not wallCheckEnabled then return true end
-    
-    local cameraPosition = Camera.CFrame.Position
-    local targetPosition = targetPart.Position
-    local direction = (targetPosition - cameraPosition).Unit
-    local distance = (targetPosition - cameraPosition).Magnitude
-    
-    -- Raycast parameters
-    local raycastParams = RaycastParams.new()
-    raycastParams.FilterDescendantsInstances = {LocalPlayer.Character, targetPart.Parent}
-    raycastParams.FilterType = Enum.RaycastFilterType.Blacklist
-    raycastParams.IgnoreWater = true
-    
-    local raycastResult = workspace:Raycast(cameraPosition, direction * distance, raycastParams)
-    
-    if raycastResult then
-        -- If we hit something before reaching the target, it's not visible
-        return false
-    end
-    
-    return true
-end
-
--- Find nearest target with improved selection logic
-local function findNearestTarget()
-    local currentTime = tick()
-    if currentTime - lastTargetSwitchTime < targetSwitchCooldown and lockedTarget then
-        return lockedTarget -- Maintain current target during cooldown
-    end
-
-    local closestPlayer = nil
-    local closestDistance = math.huge
-    local screenCenter = Vector2.new(Camera.ViewportSize.X/2, Camera.ViewportSize.Y/2)
-    local potentialTargets = {}
-
-    -- First pass: collect all valid targets
-    for _, player in pairs(Players:GetPlayers()) do
-        if player ~= LocalPlayer and player.Character and player.Character:FindFirstChild("HumanoidRootPart") then
-            if isEnemy(player) then
-                local rootPart = player.Character.HumanoidRootPart
-                local screenPoint, onScreen = Camera:WorldToViewportPoint(rootPart.Position)
-
-                if onScreen then
-                    local screenPos = Vector2.new(screenPoint.X, screenPoint.Y)
-                    local distance = (screenPos - screenCenter).Magnitude
-
-                    if distance <= circleSize and isVisible(rootPart) then
-                        table.insert(potentialTargets, {
-                            player = player,
-                            distance = distance,
-                            screenPos = screenPos
-                        })
-                    end
-                end
-            end
-        end
-    end
-
-    -- If no targets, return nil
-    if #potentialTargets == 0 then
-        return nil
-    end
-
-    -- If only one target, return it
-    if #potentialTargets == 1 then
-        return potentialTargets[1].player
-    end
-
-    -- Multiple targets - use improved selection logic
-    -- Prefer current target if still valid
-    if lockedTarget then
-        for _, target in ipairs(potentialTargets) do
-            if target.player == lockedTarget then
-                return lockedTarget
-            end
-        end
-    end
-
-    -- Otherwise select the closest target
-    for _, target in ipairs(potentialTargets) do
-        if target.distance < closestDistance then
-            closestDistance = target.distance
-            closestPlayer = target.player
-        end
-    end
-
-    lastTargetSwitchTime = currentTime
-    return closestPlayer
-end
-
--- Smoother aimlock function with adjustable strength
-local function aimlock()
-    if not aimlockActive or not LocalPlayer.Character or not LocalPlayer.Character:FindFirstChild("HumanoidRootPart") then
-        lockedTarget = nil
-        return
-    end
-
-    lockedTarget = findNearestTarget()
-
-    if lockedTarget and lockedTarget.Character and lockedTarget.Character:FindFirstChild("HumanoidRootPart") then
-        local targetRoot = lockedTarget.Character.HumanoidRootPart
-        local cameraCFrame = Camera.CFrame
-        local direction = (targetRoot.Position - cameraCFrame.Position).Unit
-        
-        -- Calculate the desired look vector
-        local desiredLook = cameraCFrame.Position + direction
-        
-        -- Apply smoothing based on aimlock strength
-        local currentLook = cameraCFrame.LookVector
-        local smoothedLook = currentLook:Lerp(direction, aimlockStrength)
-        
-        -- Create new CFrame with smoothed look vector
-        local newCFrame = CFrame.new(cameraCFrame.Position, cameraCFrame.Position + smoothedLook)
-        Camera.CFrame = newCFrame
-    end
-end
-
--- Initialize
-createCircle()
-
--- Main loop
-local function mainLoop()
-    if aimlockActive then
-        aimlock()
-    end
-    updateCircle()
-end
-
--- Cleanup function
-local function cleanup()
-    if aimlockConnection then
-        aimlockConnection:Disconnect()
-        aimlockConnection = nil
-    end
-    if viewportConnection then
-        viewportConnection:Disconnect()
-        viewportConnection = nil
-    end
-    if circleDrawing then
-        circleDrawing:Remove()
-        circleDrawing = nil
-    end
-end
-
--- Viewport size changed handler
-viewportConnection = Camera:GetPropertyChangedSignal("ViewportSize"):Connect(function()
-    updateCircle()
-end)
-
--- Create the toggles
-local AimlockToggle = Tab:CreateToggle({
-    Name = "Aimlock",
-    Description = "Locks onto the nearest target within the circle",
+local Toggle = Tab:CreateToggle({
+    Name = "StartAimlock",
+    Description = "Boots Up Aimlock",
     CurrentValue = false,
     Callback = function(Value)
-        aimlockActive = Value
+        -- Store references to all the UI elements
+        if not _G.AimlockUI then
+            _G.AimlockUI = {
+                Inputs = {},
+                ColorPicker = nil,
+                ScreenGui = nil
+            }
+        end
+        
         if Value then
-            setCircleVisibility(true)
-            if not aimlockConnection then
-                aimlockConnection = RunService.RenderStepped:Connect(mainLoop)
+            -- Create the aimlock GUI if it doesn't exist
+            if not _G.AimlockUI.ScreenGui or not _G.AimlockUI.ScreenGui.Parent then
+                -- Get required services
+                local Players = game:GetService("Players")
+                local RunService = game:GetService("RunService")
+                local UserInputService = game:GetService("UserInputService")
+                local TweenService = game:GetService("TweenService")
+
+                -- Get local player
+                local localPlayer = Players.LocalPlayer
+                local playerGui = localPlayer:WaitForChild("PlayerGui")
+
+                -- Create UI elements
+                local screenGui = Instance.new("ScreenGui")
+                screenGui.Parent = playerGui
+                screenGui.ResetOnSpawn = false
+                screenGui.Name = "AimLockUiLuau"
+                _G.AimlockUI.ScreenGui = screenGui
+
+                -- Control panel
+                local controlPanel = Instance.new("Frame")
+                controlPanel.Size = UDim2.new(0, 120, 0, 50)
+                controlPanel.Position = UDim2.new(0, 20, 0, 20)
+                controlPanel.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
+                controlPanel.BackgroundTransparency = 0.3
+                controlPanel.Active = true
+                controlPanel.Parent = screenGui
+
+                -- Round corners
+                local corner = Instance.new("UICorner")
+                corner.CornerRadius = UDim.new(0.3, 0)
+                corner.Parent = controlPanel
+
+                -- Toggle button
+                local toggleButton = Instance.new("TextButton")
+                toggleButton.Size = UDim2.new(1, 0, 1, 0)
+                toggleButton.Text = "AimLock: OFF"
+                toggleButton.BackgroundTransparency = 1
+                toggleButton.TextColor3 = Color3.fromRGB(255, 255, 255)
+                toggleButton.TextSize = 14
+                toggleButton.Font = Enum.Font.Gotham
+                toggleButton.Parent = controlPanel
+
+                -- Highlight when active
+                local outline = Instance.new("UIStroke")
+                outline.Thickness = 2
+                outline.Color = Color3.fromRGB(0, 255, 0)
+                outline.Enabled = false
+                outline.Parent = controlPanel
+
+                -- Target indicator
+                local targetIndicator = Instance.new("Frame")
+                targetIndicator.Size = UDim2.new(0, 150, 0, 150)
+                targetIndicator.Position = UDim2.new(0.5, 0, 0.5, 0)
+                targetIndicator.AnchorPoint = Vector2.new(0.5, 0.5)
+                targetIndicator.BackgroundTransparency = 1
+                targetIndicator.Parent = screenGui
+
+                local targetOutline = Instance.new("UIStroke")
+                targetOutline.Thickness = 2
+                targetOutline.Color = Color3.fromRGB(255, 0, 0)
+                targetOutline.Transparency = 0.7
+                targetOutline.Parent = targetIndicator
+
+                local targetCorner = Instance.new("UICorner")
+                targetCorner.CornerRadius = UDim.new(1, 0)
+                targetCorner.Parent = targetIndicator
+
+                -- Toggle functionality
+                local aimAssistActive = false
+                local smoothness = 0.3 -- Adjust this for smoother/stronger aim
+                local maxDistance = 1000 -- Max distance to target
+                local fovSize = 150 -- Field of view size
+
+                toggleButton.MouseButton1Click:Connect(function()
+                    aimAssistActive = not aimAssistActive
+                    outline.Enabled = aimAssistActive
+                    toggleButton.Text = aimAssistActive and "AimLock: ON" or "AimLock: OFF"
+                    
+                    -- Visual feedback
+                    local tweenInfo = TweenInfo.new(0.2, Enum.EasingStyle.Quad, Enum.EasingDirection.Out)
+                    local tween = TweenService:Create(
+                        controlPanel,
+                        tweenInfo,
+                        {BackgroundColor3 = aimAssistActive and Color3.fromRGB(40, 40, 40) or Color3.fromRGB(30, 30, 30)}
+                    )
+                    tween:Play()
+                end)
+
+                -- Enemy check function
+                local function isEnemyForAimAssist(player)
+                    if player == localPlayer then return false end
+                    if not player.Character then return false end
+                    
+                    if game:GetService("Teams") and #game:GetService("Teams"):GetTeams() > 1 then
+                        local localTeam = localPlayer.Team
+                        local playerTeam = player.Team
+                        return localTeam ~= nil and playerTeam ~= nil and localTeam ~= playerTeam
+                    else
+                        return true -- Assume all players are enemies in non-team games
+                    end
+                end
+
+                -- Visibility check function
+                local function isVisible(targetPosition, character)
+                    local localCharacter = localPlayer.Character
+                    if not localCharacter then return false end
+                    
+                    local rootPart = localCharacter:FindFirstChild("HumanoidRootPart")
+                    if not rootPart then return false end
+                    
+                    local direction = (targetPosition - rootPart.Position).Unit
+                    local ray = Ray.new(rootPart.Position + direction * 2, direction * maxDistance)
+                    
+                    local ignoreList = {localCharacter}
+                    local hitPart, hitPosition = workspace:FindPartOnRayWithIgnoreList(ray, ignoreList)
+                    
+                    if hitPart then
+                        local hitCharacter = hitPart:FindFirstAncestorOfClass("Model")
+                        return hitCharacter == character
+                    end
+                    return false
+                end
+
+                -- Find best target function
+                local function findBestTarget()
+                    local bestTarget = nil
+                    local closestDistance = math.huge
+                    local localCharacter = localPlayer.Character
+                    
+                    if not localCharacter then return nil end
+                    
+                    local rootPart = localCharacter:FindFirstChild("HumanoidRootPart")
+                    if not rootPart then return nil end
+                    
+                    local camera = workspace.CurrentCamera
+                    if not camera then return nil end
+                    
+                    local targetCenter = targetIndicator.AbsolutePosition + (targetIndicator.AbsoluteSize / 2)
+                    local targetRadius = fovSize / 2
+
+                    for _, player in pairs(Players:GetPlayers()) do
+                        if isEnemyForAimAssist(player) and player.Character then
+                            local character = player.Character
+                            local humanoid = character:FindFirstChildOfClass("Humanoid")
+                            if humanoid and humanoid.Health <= 0 then continue end
+                            
+                            local enemyRoot = character:FindFirstChild("HumanoidRootPart")
+                            local head = character:FindFirstChild("Head")
+                            
+                            if enemyRoot then
+                                local screenPosition, onScreen = camera:WorldToScreenPoint(enemyRoot.Position)
+                                if onScreen then
+                                    local distanceFromCenter = (Vector2.new(screenPosition.X, screenPosition.Y) - targetCenter).Magnitude
+                                    local distanceFromPlayer = (rootPart.Position - enemyRoot.Position).Magnitude
+                                    
+                                    if distanceFromCenter <= targetRadius 
+                                       and distanceFromPlayer <= maxDistance 
+                                       and distanceFromCenter < closestDistance 
+                                       and isVisible(enemyRoot.Position, character) then
+                                        
+                                        closestDistance = distanceFromCenter
+                                        bestTarget = {
+                                            player = player,
+                                            root = enemyRoot,
+                                            head = head
+                                        }
+                                    end
+                                end
+                            end
+                        end
+                    end
+                    
+                    return bestTarget
+                end
+
+                -- Aim assist functionality
+                local aimAssistConnection
+                aimAssistConnection = RunService.RenderStepped:Connect(function()
+                    if aimAssistActive then
+                        local target = findBestTarget()
+                        
+                        if target and target.root then
+                            local camera = workspace.CurrentCamera
+                            if camera then
+                                -- Prioritize head if available
+                                local targetPosition = target.head and target.head.Position or target.root.Position
+                                local cameraPosition = camera.CFrame.Position
+                                local targetCFrame = CFrame.new(cameraPosition, targetPosition)
+                                
+                                -- Smooth aiming
+                                camera.CFrame = camera.CFrame:Lerp(targetCFrame, smoothness)
+                                
+                                -- Visual feedback
+                                targetOutline.Color = Color3.fromRGB(0, 255, 0)
+                            end
+                        else
+                            -- Reset visual feedback when no target
+                            targetOutline.Color = Color3.fromRGB(255, 0, 0)
+                        end
+                    end
+                end)
+
+                -- Draggable UI functionality
+                local isDragging = false
+                local dragStartPosition = Vector2.new(0, 0)
+                local dragStartOffset = UDim2.new(0, 0, 0, 0)
+
+                controlPanel.InputBegan:Connect(function(input)
+                    if input.UserInputType == Enum.UserInputType.MouseButton1 then
+                        isDragging = true
+                        dragStartPosition = input.Position
+                        dragStartOffset = controlPanel.Position
+                        
+                        -- Visual feedback
+                        controlPanel.BackgroundTransparency = 0.2
+                    end
+                end)
+
+                controlPanel.InputChanged:Connect(function(input)
+                    if input.UserInputType == Enum.UserInputType.MouseMovement and isDragging then
+                        local dragDelta = input.Position - dragStartPosition
+                        controlPanel.Position = UDim2.new(
+                            dragStartOffset.X.Scale, 
+                            dragStartOffset.X.Offset + dragDelta.X, 
+                            dragStartOffset.Y.Scale, 
+                            dragStartOffset.Y.Offset + dragDelta.Y
+                        )
+                    end
+                end)
+
+                UserInputService.InputEnded:Connect(function(input)
+                    if input.UserInputType == Enum.UserInputType.MouseButton1 then
+                        isDragging = false
+                        controlPanel.BackgroundTransparency = 0.3
+                    end
+                end)
+
+                -- Cleanup when character respawns
+                localPlayer.CharacterAdded:Connect(function()
+                    if not screenGui:IsDescendantOf(playerGui) then
+                        screenGui.Parent = playerGui
+                    end
+                end)
+
+                -- Store connection for cleanup
+                _G.AimlockUI.AimAssist = {
+                    Connection = aimAssistConnection,
+                    TargetIndicator = targetIndicator,
+                    TargetOutline = targetOutline,
+                    Smoothness = smoothness,
+                    FOVSize = fovSize,
+                    MaxDistance = maxDistance,
+                    Toggle = function()
+                        aimAssistActive = not aimAssistActive
+                        outline.Enabled = aimAssistActive
+                        toggleButton.Text = aimAssistActive and "AimLock: ON" or "AimLock: OFF"
+                    end,
+                    Destroy = function()
+                        aimAssistConnection:Disconnect()
+                        screenGui:Destroy()
+                        _G.AimlockUI.AimAssist = nil
+                    end
+                }
+            else
+                -- If GUI exists but is hidden, show it
+                _G.AimlockUI.ScreenGui.Enabled = true
             end
         else
-            setCircleVisibility(false)
-            lockedTarget = nil
+            -- Hide the GUI when toggle is off
+            if _G.AimlockUI.ScreenGui then
+                _G.AimlockUI.ScreenGui.Enabled = false
+            end
         end
     end
 }, "Toggle")
 
-local WallCheckToggle = Tab:CreateToggle({
-    Name = "Wall Check",
-    Description = "Prevents locking onto targets behind walls",
-    CurrentValue = wallCheckEnabled,
-    Callback = function(Value)
-        wallCheckEnabled = Value
+-- Input for changing aimlock circle size
+local Input1 = Tab:CreateInput({
+    Name = "Fov Size",
+    Description = nil,
+    PlaceholderText = "150",
+    CurrentValue = "",
+    Numeric = true,
+    MaxCharacters = 4,
+    Enter = true,
+    Callback = function(Text)
+        if _G.AimlockUI and _G.AimlockUI.AimAssist and tonumber(Text) then
+            local newSize = tonumber(Text)
+            if newSize > 10 and newSize < 1000 then
+                _G.AimlockUI.AimAssist.TargetIndicator.Size = UDim2.new(0, newSize, 0, newSize)
+                _G.AimlockUI.AimAssist.FOVSize = newSize
+            end
+        end
     end
-}, "Toggle")
+}, "Input1")
 
-local TeamCheckToggle = Tab:CreateToggle({
-    Name = "Team Check",
-    Description = "Only targets enemies (opposite team)",
-    CurrentValue = teamCheckEnabled,
-    Callback = function(Value)
-        teamCheckEnabled = Value
+-- Input for changing aimlock circle transparency
+local Input2 = Tab:CreateInput({
+    Name = "Fov Transparency",
+    Description = nil,
+    PlaceholderText = "(0-1)",
+    CurrentValue = "",
+    Numeric = true,
+    MaxCharacters = 3,
+    Enter = true,
+    Callback = function(Text)
+        if _G.AimlockUI and _G.AimlockUI.AimAssist and tonumber(Text) then
+            local transparency = tonumber(Text)
+            if transparency >= 0 and transparency <= 1 then
+                _G.AimlockUI.AimAssist.TargetOutline.Transparency = transparency
+            end
+        end
     end
-}, "Toggle")
+}, "Input2")
 
-local CircleSizeInput = Tab:CreateSlider({
-    Name = "Aimlock Circle Size",
-    Range = {10, 500},
-    Increment = 5,
-    CurrentValue = circleSize,
-    Callback = function(Value)
-        circleSize = Value
-        updateCircle()
+-- Input for changing aimlock strength
+local Input3 = Tab:CreateInput({
+    Name = "Aimlock Strength",
+    Description = nil,
+    PlaceholderText = "(0.3)",
+    CurrentValue = "",
+    Numeric = true,
+    MaxCharacters = 3,
+    Enter = true,
+    Callback = function(Text)
+        if _G.AimlockUI and _G.AimlockUI.AimAssist and tonumber(Text) then
+            local strength = tonumber(Text)
+            if strength >= 0.1 and strength <= 1 then
+                _G.AimlockUI.AimAssist.Smoothness = strength
+            end
+        end
     end
-}, "Slider")
+}, "Input3")
 
-local CircleColorPicker = Tab:CreateColorPicker({
-    Name = "Circle Color",
-    Color = circleColor,
+-- Color picker for changing aimlock circle color
+local ColorPicker = Tab:CreateColorPicker({
+    Name = "FovColor",
+    Color = Color3.fromRGB(255, 0, 0),
+    Flag = "AimlockColorPicker",
     Callback = function(Value)
-        circleColor = Value
-        updateCircle()
+        if _G.AimlockUI and _G.AimlockUI.AimAssist then
+            _G.AimlockUI.AimAssist.TargetOutline.Color = Value
+        end
     end
 }, "ColorPicker")
-
--- New: Aimlock Strength Slider
-local AimlockStrengthInput = Tab:CreateSlider({
-    Name = "Aimlock Strength",
-    Description = "Adjust how strong the aimlock pulls (0.1 = weak, 1.0 = strong)",
-    Range = {0.1, 1.0},
-    Increment = 0.05,
-    CurrentValue = aimlockStrength,
-    Callback = function(Value)
-        aimlockStrength = Value
-    end
-}, "Slider")
-
--- Cleanup when player leaves
-game:GetService("UserInputService").WindowFocusReleased:Connect(cleanup)
-LocalPlayer.CharacterRemoving:Connect(cleanup)
 
 local Tab = Window:CreateTab({
     Name = "Hitbox Expansion",
@@ -1752,6 +1813,14 @@ local Button = Tab:CreateButton({
 	Description = "bloxStrap from temu", -- Creates A Description For Users to know what the button does (looks bad if you use it all the time),
     	Callback = function()
          loadstring(game:HttpGet('https://raw.githubusercontent.com/qwertyui-is-back/Bloxstrap/refs/heads/main/loader.lua'))()
+    	end
+})
+
+local Button = Tab:CreateButton({
+	Name = "Shiftlock",
+	Description = "ShiftLock Button", -- Creates A Description For Users to know what the button does (looks bad if you use it all the time),
+    	Callback = function()
+         loadstring(game:HttpGet('https://pastebin.com/raw/WQ9NPeDS'))()
     	end
 })
 
