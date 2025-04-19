@@ -284,146 +284,175 @@ if Players.LocalPlayer and Players.LocalPlayer.Character then
 end
 
 -- Hitbox Variable
+-- Configuration
+local HITBOX_PARTS = {"HumanoidRootPart", "Head"}
+local DEFAULT_HITBOX_SIZE = 10
+local DEFAULT_HITBOX_TRANSPARENCY = 0.8
+local HITBOX_MATERIAL = Enum.Material.ForceField
+
+-- State management
 local hitboxEnabled = false
-local hitboxSize = 10
-local hitboxTransparency = 0.8
-local originalProperties = {}
+local hitboxSize = DEFAULT_HITBOX_SIZE
+local hitboxTransparency = DEFAULT_HITBOX_TRANSPARENCY
+local originalProperties = {} -- Stores original part properties
+local playerTrackers = {} -- Tracks player states and connections
 
--- Stores references to modified parts
-local activeHitboxes = {}
-local playerStates = {} -- Track player alive/dead states
+-- Cache frequently used services
+local Players = game:GetService("Players")
+local RunService = game:GetService("RunService")
+local LocalPlayer = Players.LocalPlayer
 
--- Function to check if player is alive
-local function isPlayerAlive(character)
-    if not character or not character.Parent then return false end
+-- Helper functions
+local function getPlayerFromCharacter(character)
+    return Players:GetPlayerFromCharacter(character)
+end
+
+local function isEnemy(player)
+    return player and player ~= LocalPlayer -- Modify with your enemy detection logic
+end
+
+local function isAlive(character)
+    if not character then return false end
     local humanoid = character:FindFirstChildOfClass("Humanoid")
     return humanoid and humanoid.Health > 0
 end
 
--- Main hitbox expansion function
+-- Part processing functions
+local function saveOriginalProperties(part)
+    if not originalProperties[part] then
+        originalProperties[part] = {
+            Size = part.Size,
+            Transparency = part.Transparency,
+            CanCollide = part.CanCollide,
+            Material = part.Material
+        }
+    end
+end
+
+local function applyHitboxProperties(part)
+    if not part then return end
+    saveOriginalProperties(part)
+    part.Size = Vector3.new(hitboxSize, hitboxSize, hitboxSize)
+    part.Transparency = hitboxTransparency
+    part.CanCollide = false
+    part.Material = HITBOX_MATERIAL
+end
+
+local function restoreOriginalProperties(part)
+    if not part or not originalProperties[part] then return end
+    local props = originalProperties[part]
+    part.Size = props.Size
+    part.Transparency = props.Transparency
+    part.CanCollide = props.CanCollide
+    part.Material = props.Material
+end
+
+-- Main hitbox functions
 local function expandHitboxes(character)
-    if not character or not character.Parent then return end
+    if not character or not isAlive(character) then return end
     local player = getPlayerFromCharacter(character)
     if not player or not isEnemy(player) then return end
-    if not isPlayerAlive(character) then return end -- Don't expand if dead
 
-    -- Only modify HRP and Head
-    local hrp = character:FindFirstChild("HumanoidRootPart")
-    local head = character:FindFirstChild("Head")
-
-    -- Process HumanoidRootPart
-    if hrp and hrp.Parent then
-        if not originalProperties[hrp] then
-            originalProperties[hrp] = {
-                Size = hrp.Size,
-                Transparency = hrp.Transparency,
-                CanCollide = hrp.CanCollide,
-                Material = hrp.Material
-            }
+    for _, partName in ipairs(HITBOX_PARTS) do
+        local part = character:FindFirstChild(partName)
+        if part then
+            applyHitboxProperties(part)
         end
-        hrp.Size = Vector3.new(hitboxSize, hitboxSize, hitboxSize)
-        hrp.Transparency = hitboxTransparency
-        hrp.CanCollide = false
-        hrp.Material = Enum.Material.ForceField
-        table.insert(activeHitboxes, hrp)
-    end
-
-    -- Process Head
-    if head and head.Parent then
-        if not originalProperties[head] then
-            originalProperties[head] = {
-                Size = head.Size,
-                Transparency = head.Transparency,
-                CanCollide = head.CanCollide,
-                Material = head.Material
-            }
-        end
-        head.Size = Vector3.new(hitboxSize, hitboxSize, hitboxSize)
-        head.Transparency = hitboxTransparency
-        head.CanCollide = false
-        head.Material = Enum.Material.ForceField
-        table.insert(activeHitboxes, head)
     end
 end
 
--- Reset hitboxes to original state
 local function resetHitboxes(character)
-    if not character or not character.Parent then return end
-
-    for part, props in pairs(originalProperties) do
+    if not character then return end
+    for part in pairs(originalProperties) do
         if part and part.Parent == character then
-            part.Size = props.Size
-            part.Transparency = props.Transparency
-            part.CanCollide = props.CanCollide
-            part.Material = props.Material
+            restoreOriginalProperties(part)
         end
     end
 end
 
--- Track player state changes
-local function trackPlayerState(player)
-    if not player or not player:IsA("Player") or playerStates[player] then return end
+-- Player tracking with respawn support
+local function trackPlayer(player)
+    if playerTrackers[player] or player == LocalPlayer then return end
     
-    playerStates[player] = {
-        Connection = nil,
-        Alive = false
+    local tracker = {
+        connections = {},
+        alive = false,
+        currentCharacter = nil
     }
-    
+    playerTrackers[player] = tracker
+
     local function onCharacterAdded(character)
-        if not character or not character.Parent then return end
+        -- Clean up previous connections
+        for _, conn in ipairs(tracker.connections) do
+            conn:Disconnect()
+        end
+        tracker.connections = {}
         
+        if not character then return end
+        
+        tracker.currentCharacter = character
         local humanoid = character:FindFirstChildOfClass("Humanoid")
         if not humanoid then return end
         
-        -- Update state when health changes
+        -- Update state function
         local function updateState()
             local nowAlive = humanoid.Health > 0
-            if playerStates[player].Alive ~= nowAlive then
-                playerStates[player].Alive = nowAlive
+            if tracker.alive ~= nowAlive then
+                tracker.alive = nowAlive
                 if hitboxEnabled then
                     if nowAlive then
+                        -- Player respawned - expand hitboxes
                         expandHitboxes(character)
                     else
+                        -- Player died - reset hitboxes
                         resetHitboxes(character)
                     end
                 end
             end
         end
         
-        -- Initial state
-        updateState()
-        
-        -- Connect to health changes
-        if playerStates[player].Connection then
-            playerStates[player].Connection:Disconnect()
-        end
-        playerStates[player].Connection = humanoid:GetPropertyChangedSignal("Health"):Connect(updateState)
-        
-        -- Connect to death
-        humanoid.Died:Connect(function()
-            playerStates[player].Alive = false
+        -- Set up connections
+        table.insert(tracker.connections, humanoid:GetPropertyChangedSignal("Health"):Connect(updateState))
+        table.insert(tracker.connections, humanoid.Died:Connect(function()
+            tracker.alive = false
             if hitboxEnabled then
                 resetHitboxes(character)
             end
-        end)
+        end))
+        
+        -- Initial state (will expand if alive)
+        updateState()
     end
     
-    player.CharacterAdded:Connect(onCharacterAdded)
+    -- Set up character tracking
+    table.insert(tracker.connections, player.CharacterAdded:Connect(onCharacterAdded))
     if player.Character then
-        coroutine.wrap(onCharacterAdded)(player.Character)
+        onCharacterAdded(player.Character)
     end
 end
 
--- Apply to all players
+local function untrackPlayer(player)
+    local tracker = playerTrackers[player]
+    if not tracker then return end
+    
+    -- Reset hitboxes before untracking
+    if tracker.currentCharacter then
+        resetHitboxes(tracker.currentCharacter)
+    end
+    
+    for _, conn in ipairs(tracker.connections) do
+        conn:Disconnect()
+    end
+    
+    playerTrackers[player] = nil
+end
+
+-- Global update functions
 local function updateAllHitboxes()
     for _, player in ipairs(Players:GetPlayers()) do
-        if player and player:IsA("Player") and isEnemy(player) and player.Character then
-            if hitboxEnabled then
-                if isPlayerAlive(player.Character) then
-                    expandHitboxes(player.Character)
-                else
-                    resetHitboxes(player.Character)
-                end
+        if player ~= LocalPlayer and isEnemy(player) and player.Character then
+            if hitboxEnabled and isAlive(player.Character) then
+                expandHitboxes(player.Character)
             else
                 resetHitboxes(player.Character)
             end
@@ -431,41 +460,56 @@ local function updateAllHitboxes()
     end
 end
 
--- Player tracking
-Players.PlayerAdded:Connect(function(player)
-    if player and player:IsA("Player") then
-        trackPlayerState(player)
-    end
-end)
+-- Heartbeat optimization with respawn support
+local lastUpdate = 0
+local UPDATE_INTERVAL = 0.1
 
--- Initialize for existing players
-for _, player in ipairs(Players:GetPlayers()) do
-    if player and player:IsA("Player") then
-        trackPlayerState(player)
-    end
-end
-
--- Auto-update to prevent hitbox reset
-RunService.Heartbeat:Connect(function()
-    if hitboxEnabled then
-        for _, player in ipairs(Players:GetPlayers()) do
-            if player and player:IsA("Player") and player.Character and playerStates[player] then
-                local hrp = player.Character:FindFirstChild("HumanoidRootPart")
-                local head = player.Character:FindFirstChild("Head")
-                
-                -- Only update if player is alive and enemy
-                if playerStates[player].Alive and isEnemy(player) then
-                    if hrp and hrp.Parent and (hrp.Size.X < hitboxSize or hrp.Transparency ~= hitboxTransparency) then
-                        expandHitboxes(player.Character)
-                    end
-                    if head and head.Parent and (head.Size.X < hitboxSize or head.Transparency ~= hitboxTransparency) then
-                        expandHitboxes(player.Character)
+RunService.Heartbeat:Connect(function(deltaTime)
+    if not hitboxEnabled then return end
+    
+    lastUpdate = lastUpdate + deltaTime
+    if lastUpdate < UPDATE_INTERVAL then return end
+    lastUpdate = 0
+    
+    for player, tracker in pairs(playerTrackers) do
+        if player ~= LocalPlayer and isEnemy(player) and tracker.currentCharacter then
+            if tracker.alive then
+                -- Player is alive - ensure hitboxes are expanded
+                for _, partName in ipairs(HITBOX_PARTS) do
+                    local part = tracker.currentCharacter:FindFirstChild(partName)
+                    if part and (part.Size.X < hitboxSize or part.Transparency ~= hitboxTransparency) then
+                        applyHitboxProperties(part)
                     end
                 end
+            else
+                -- Player is dead - ensure hitboxes are reset
+                resetHitboxes(tracker.currentCharacter)
             end
         end
     end
 end)
+
+-- Player management
+Players.PlayerAdded:Connect(function(player)
+    if player ~= LocalPlayer then
+        trackPlayer(player)
+    end
+end)
+
+Players.PlayerRemoving:Connect(untrackPlayer)
+
+-- Initialize for existing players (excluding local player)
+for _, player in ipairs(Players:GetPlayers()) do
+    if player ~= LocalPlayer then
+        trackPlayer(player)
+    end
+end
+
+-- Toggle function example (optional)
+local function toggleHitboxes(enabled)
+    hitboxEnabled = enabled
+    updateAllHitboxes()
+end
 
 -- FPS Counter Variable
 local fpsGui = Instance.new("ScreenGui")
@@ -957,7 +1001,7 @@ local Button = Tab:CreateButton({
 
 local Button = Tab:CreateButton({
 	Name = "AntiLag 2",
-	Description = "Rec, FB", -- Creates A Description For Users to know what the button does (looks bad if you use it all the time),
+	Description = "(Rec, FB)", -- Creates A Description For Users to know what the button does (looks bad if you use it all the time),
     	Callback = function()
          loadstring(game:HttpGet("https://pastebin.com/raw/RuUJqYES", true))()
     	end
@@ -1188,6 +1232,8 @@ local circleSize = 100
 local circleColor = Color3.fromRGB(86, 171, 128)
 local lockedTarget = nil
 local circleDrawing = nil
+local wallCheckEnabled = true -- Added wall check toggle
+local teamCheckEnabled = true -- Added team check toggle
 
 -- Connections
 local aimlockConnection = nil
@@ -1238,9 +1284,35 @@ end
 
 -- Check if player is enemy
 local function isEnemy(player)
+    if not teamCheckEnabled then return true end
     if not LocalPlayer.Team then return true end
     if not player.Team then return true end
     return player.Team ~= LocalPlayer.Team
+end
+
+-- Wall check function
+local function isVisible(targetPart)
+    if not wallCheckEnabled then return true end
+    
+    local cameraPosition = Camera.CFrame.Position
+    local targetPosition = targetPart.Position
+    local direction = (targetPosition - cameraPosition).Unit
+    local distance = (targetPosition - cameraPosition).Magnitude
+    
+    -- Raycast parameters
+    local raycastParams = RaycastParams.new()
+    raycastParams.FilterDescendantsInstances = {LocalPlayer.Character, targetPart.Parent}
+    raycastParams.FilterType = Enum.RaycastFilterType.Blacklist
+    raycastParams.IgnoreWater = true
+    
+    local raycastResult = workspace:Raycast(cameraPosition, direction * distance, raycastParams)
+    
+    if raycastResult then
+        -- If we hit something before reaching the target, it's not visible
+        return false
+    end
+    
+    return true
 end
 
 -- Find nearest target
@@ -1259,7 +1331,7 @@ local function findNearestTarget()
                     local screenPos = Vector2.new(screenPoint.X, screenPoint.Y)
                     local distance = (screenPos - screenCenter).Magnitude
 
-                    if distance <= circleSize and distance < closestDistance then
+                    if distance <= circleSize and distance < closestDistance and isVisible(rootPart) then
                         closestDistance = distance
                         closestPlayer = player
                     end
@@ -1337,6 +1409,24 @@ local AimlockToggle = Tab:CreateToggle({
             setCircleVisibility(false)
             lockedTarget = nil
         end
+    end
+}, "Toggle")
+
+local WallCheckToggle = Tab:CreateToggle({
+    Name = "Wall Check",
+    Description = "Prevents locking onto targets behind walls",
+    CurrentValue = wallCheckEnabled,
+    Callback = function(Value)
+        wallCheckEnabled = Value
+    end
+}, "Toggle")
+
+local TeamCheckToggle = Tab:CreateToggle({
+    Name = "Team Check",
+    Description = "Only targets enemies (opposite team)",
+    CurrentValue = teamCheckEnabled,
+    Callback = function(Value)
+        teamCheckEnabled = Value
     end
 }, "Toggle")
 
