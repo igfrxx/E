@@ -4,8 +4,13 @@ local RunService = game:GetService("RunService")
 local UserInputService = game:GetService("UserInputService")
 local SoundService = game:GetService("SoundService")
 
+-- Services
+local Players = game:GetService("Players")
+local Teams = game:GetService("Teams")
+local RunService = game:GetService("RunService")
+
 -- StoredVariables
-local teamCheckEnabled = false -- Added team check variable
+local teamCheckEnabled = true -- Added this variable to control team checking
 
 -- ESP variables
 local highlightEspEnabled = false
@@ -14,36 +19,86 @@ local boxEspEnabled = false
 local espColor = Color3.fromRGB(86, 171, 128)
 local espObjects = {}
 
+-- Function to safely get player from character
+local function getPlayerFromCharacter(character)
+    for _, player in ipairs(Players:GetPlayers()) do
+        if player.Character == character then
+            return player
+        end
+    end
+    return nil
+end
+
+-- Function to check if teams are enabled in the game
+local function areTeamsEnabled()
+    -- Check if the Teams service exists and has teams
+    if not pcall(function() return #Teams:GetTeams() end) then
+        return false
+    end
+    
+    if #Teams:GetTeams() > 1 then
+        return true
+    end
+    
+    -- Check if any players are assigned to teams
+    for _, player in ipairs(Players:GetPlayers()) do
+        if player:IsA("Player") and player.Team and player.Team ~= Teams.Neutral then
+            return true
+        end
+    end
+    
+    return false
+end
+
 -- Function to check if a player is an enemy
 local function isEnemy(player)
-    if not teamCheckEnabled then
-        return player ~= Players.LocalPlayer
-    end
-    
     local localPlayer = Players.LocalPlayer
-    if not localPlayer or not localPlayer.Team then 
-        return player ~= localPlayer
+    if not localPlayer or not player or player == localPlayer then
+        return false
     end
     
-    return player ~= localPlayer and (not player.Team or player.Team ~= localPlayer.Team)
+    -- If team check is disabled or teams aren't enabled in the game, treat everyone as enemy
+    if not teamCheckEnabled or not areTeamsEnabled() then
+        return true
+    end
+    
+    -- If the local player has no team, treat everyone as enemy
+    if not localPlayer.Team or localPlayer.Team == Teams.Neutral then
+        return true
+    end
+    
+    -- If the other player has no team, treat them as enemy
+    if not player.Team then
+        return true
+    end
+    
+    -- Otherwise, check if they're on a different team
+    return player.Team ~= localPlayer.Team
 end
 
 -- Function to create ESP
 local function createEsp(player)
-    if not player.Character or not isEnemy(player) then return end
+    if not player or not player:IsA("Player") or not player.Character then return end
 
     local character = player.Character
+    if not character or not character.Parent then return end
+    
     local humanoidRootPart = character:FindFirstChild("HumanoidRootPart")
-    local humanoid = character:FindFirstChild("Humanoid")
+    local humanoid = character:FindFirstChildOfClass("Humanoid")
     if not humanoidRootPart or not humanoid then return end
 
     -- Remove existing ESP if it exists
     if espObjects[player] then
         for _, obj in pairs(espObjects[player]) do
-            if obj then obj:Destroy() end
+            if obj and obj.Parent then
+                obj:Destroy()
+            end
         end
         espObjects[player] = nil
     end
+
+    -- Only create ESP for enemies
+    if not isEnemy(player) then return end
 
     -- Create new ESP objects
     espObjects[player] = {}
@@ -69,6 +124,7 @@ local function createEsp(player)
         billboard.Size = UDim2.new(0, 200, 0, 50)
         billboard.StudsOffset = Vector3.new(0, 3, 0)
         billboard.AlwaysOnTop = true
+        
         local textLabel = Instance.new("TextLabel")
         textLabel.Text = player.Name
         textLabel.Size = UDim2.new(1, 0, 1, 0)
@@ -78,8 +134,13 @@ local function createEsp(player)
         textLabel.TextStrokeColor3 = Color3.new(0, 0, 0)
         textLabel.TextScaled = true
         textLabel.Parent = billboard
-        billboard.Parent = humanoidRootPart
-        table.insert(espObjects[player], billboard)
+        
+        if humanoidRootPart and humanoidRootPart.Parent then
+            billboard.Parent = humanoidRootPart
+            table.insert(espObjects[player], billboard)
+        else
+            billboard:Destroy()
+        end
     end
 
     -- Box ESP
@@ -92,8 +153,13 @@ local function createEsp(player)
         box.Size = Vector3.new(2, 3.5, 1)
         box.Transparency = 0.5
         box.Color3 = espColor
-        box.Parent = humanoidRootPart
-        table.insert(espObjects[player], box)
+        
+        if humanoidRootPart and humanoidRootPart.Parent then
+            box.Parent = humanoidRootPart
+            table.insert(espObjects[player], box)
+        else
+            box:Destroy()
+        end
     end
 end
 
@@ -101,14 +167,18 @@ end
 local function updateEspColor(newColor)
     espColor = newColor
     for player, objects in pairs(espObjects) do
-        for _, obj in pairs(objects) do
-            if obj:IsA("Highlight") then
-                obj.FillColor = newColor
-                obj.OutlineColor = newColor
-            elseif obj:IsA("BillboardGui") then
-                obj.TextLabel.TextColor3 = newColor
-            elseif obj:IsA("BoxHandleAdornment") then
-                obj.Color3 = newColor
+        if player and player:IsA("Player") then
+            for _, obj in pairs(objects) do
+                if obj and obj.Parent then
+                    if obj:IsA("Highlight") then
+                        obj.FillColor = newColor
+                        obj.OutlineColor = newColor
+                    elseif obj:IsA("BillboardGui") and obj:FindFirstChild("TextLabel") then
+                        obj.TextLabel.TextColor3 = newColor
+                    elseif obj:IsA("BoxHandleAdornment") then
+                        obj.Color3 = newColor
+                    end
+                end
             end
         end
     end
@@ -117,38 +187,60 @@ end
 -- Function to toggle ESP for all players
 local function toggleEsp()
     for _, player in ipairs(Players:GetPlayers()) do
-        createEsp(player)
+        if player and player:IsA("Player") then
+            createEsp(player)
+        end
     end
 end
 
 -- Function to clear all ESP
 local function clearEsp()
     for player, objects in pairs(espObjects) do
-        for _, obj in pairs(objects) do
-            if obj then obj:Destroy() end
+        if objects then
+            for _, obj in pairs(objects) do
+                if obj and obj.Parent then
+                    obj:Destroy()
+                end
+            end
         end
     end
     espObjects = {}
 end
 
 -- Player added/removed connections
-Players.PlayerAdded:Connect(function(player)
-    if highlightEspEnabled or nameEspEnabled or boxEspEnabled then
-        player.CharacterAdded:Connect(function(character)
-            wait(1) -- Wait for character to fully load
+local function onPlayerAdded(player)
+    if not player or not player:IsA("Player") then return end
+    
+    local function onCharacterAdded(character)
+        if not character or not character.Parent then return end
+        wait(1) -- Wait for character to fully load
+        
+        if highlightEspEnabled or nameEspEnabled or boxEspEnabled then
             createEsp(player)
-        end)
+        end
     end
-end)
+    
+    player.CharacterAdded:Connect(onCharacterAdded)
+    if player.Character then
+        coroutine.wrap(onCharacterAdded)(player.Character)
+    end
+end
 
-Players.PlayerRemoving:Connect(function(player)
+local function onPlayerRemoving(player)
+    if not player or not player:IsA("Player") then return end
+    
     if espObjects[player] then
         for _, obj in pairs(espObjects[player]) do
-            if obj then obj:Destroy() end
+            if obj and obj.Parent then
+                obj:Destroy()
+            end
         end
         espObjects[player] = nil
     end
-end)
+end
+
+Players.PlayerAdded:Connect(onPlayerAdded)
+Players.PlayerRemoving:Connect(onPlayerRemoving)
 
 -- Hitbox Variable
 local hitboxEnabled = false
@@ -162,14 +254,16 @@ local playerStates = {} -- Track player alive/dead states
 
 -- Function to check if player is alive
 local function isPlayerAlive(character)
-    if not character then return false end
+    if not character or not character.Parent then return false end
     local humanoid = character:FindFirstChildOfClass("Humanoid")
     return humanoid and humanoid.Health > 0
 end
 
 -- Main hitbox expansion function
 local function expandHitboxes(character)
-    if not character or not isEnemy(Players:GetPlayerFromCharacter(character)) then return end
+    if not character or not character.Parent then return end
+    local player = getPlayerFromCharacter(character)
+    if not player or not isEnemy(player) then return end
     if not isPlayerAlive(character) then return end -- Don't expand if dead
 
     -- Only modify HRP and Head
@@ -177,7 +271,7 @@ local function expandHitboxes(character)
     local head = character:FindFirstChild("Head")
 
     -- Process HumanoidRootPart
-    if hrp then
+    if hrp and hrp.Parent then
         if not originalProperties[hrp] then
             originalProperties[hrp] = {
                 Size = hrp.Size,
@@ -194,7 +288,7 @@ local function expandHitboxes(character)
     end
 
     -- Process Head
-    if head then
+    if head and head.Parent then
         if not originalProperties[head] then
             originalProperties[head] = {
                 Size = head.Size,
@@ -213,7 +307,7 @@ end
 
 -- Reset hitboxes to original state
 local function resetHitboxes(character)
-    if not character then return end
+    if not character or not character.Parent then return end
 
     for part, props in pairs(originalProperties) do
         if part and part.Parent == character then
@@ -227,8 +321,7 @@ end
 
 -- Track player state changes
 local function trackPlayerState(player)
-    if not player then return end
-    if playerStates[player] then return end -- Already tracking
+    if not player or not player:IsA("Player") or playerStates[player] then return end
     
     playerStates[player] = {
         Connection = nil,
@@ -236,7 +329,9 @@ local function trackPlayerState(player)
     }
     
     local function onCharacterAdded(character)
-        local humanoid = character:WaitForChild("Humanoid", 2)
+        if not character or not character.Parent then return end
+        
+        local humanoid = character:FindFirstChildOfClass("Humanoid")
         if not humanoid then return end
         
         -- Update state when health changes
@@ -274,14 +369,14 @@ local function trackPlayerState(player)
     
     player.CharacterAdded:Connect(onCharacterAdded)
     if player.Character then
-        onCharacterAdded(player.Character)
+        coroutine.wrap(onCharacterAdded)(player.Character)
     end
 end
 
 -- Apply to all players
 local function updateAllHitboxes()
     for _, player in ipairs(Players:GetPlayers()) do
-        if player.Character then
+        if player and player:IsA("Player") and isEnemy(player) and player.Character then
             if hitboxEnabled then
                 if isPlayerAlive(player.Character) then
                     expandHitboxes(player.Character)
@@ -297,34 +392,80 @@ end
 
 -- Player tracking
 Players.PlayerAdded:Connect(function(player)
-    trackPlayerState(player)
+    if player and player:IsA("Player") then
+        trackPlayerState(player)
+    end
 end)
 
 -- Initialize for existing players
 for _, player in ipairs(Players:GetPlayers()) do
-    trackPlayerState(player)
+    if player and player:IsA("Player") then
+        trackPlayerState(player)
+    end
 end
 
 -- Auto-update to prevent hitbox reset
 RunService.Heartbeat:Connect(function()
     if hitboxEnabled then
         for _, player in ipairs(Players:GetPlayers()) do
-            if player.Character and playerStates[player] then
+            if player and player:IsA("Player") and player.Character and playerStates[player] then
                 local hrp = player.Character:FindFirstChild("HumanoidRootPart")
                 local head = player.Character:FindFirstChild("Head")
                 
-                -- Only update if player is alive
-                if playerStates[player].Alive then
-                    if hrp and (hrp.Size.X < hitboxSize or hrp.Transparency ~= hitboxTransparency) then
+                -- Only update if player is alive and enemy
+                if playerStates[player].Alive and isEnemy(player) then
+                    if hrp and hrp.Parent and (hrp.Size.X < hitboxSize or hrp.Transparency ~= hitboxTransparency) then
                         expandHitboxes(player.Character)
                     end
-                    if head and (head.Size.X < hitboxSize or head.Transparency ~= hitboxTransparency) then
+                    if head and head.Parent and (head.Size.X < hitboxSize or head.Transparency ~= hitboxTransparency) then
                         expandHitboxes(player.Character)
                     end
                 end
             end
         end
     end
+end)
+
+-- FPS Counter Variable
+local fpsGui = Instance.new("ScreenGui")
+fpsGui.Name = "FPSCounterGui"
+fpsGui.ResetOnSpawn = false
+fpsGui.Enabled = false
+fpsGui.Parent = game:GetService("CoreGui")
+
+local frame = Instance.new("Frame")
+frame.Size = UDim2.new(0, 120, 0, 50)
+frame.Position = UDim2.new(0, 10, 0, 10)
+frame.BackgroundColor3 = Color3.fromRGB(20, 20, 20)
+frame.BackgroundTransparency = 0.2
+frame.BorderSizePixel = 0
+frame.Active = true
+frame.Draggable = true
+frame.Parent = fpsGui
+
+local label = Instance.new("TextLabel")
+label.Size = UDim2.new(1, 0, 1, 0)
+label.BackgroundTransparency = 1
+label.TextColor3 = Color3.new(1, 1, 1)
+label.TextScaled = true
+label.Font = Enum.Font.Arcade
+label.Text = "FPS: 0"
+label.Parent = frame
+
+-- FPS Update Loop
+local RunService = game:GetService("RunService")
+local fps = 0
+local counter = 0
+local lastTick = tick()
+
+RunService.RenderStepped:Connect(function()
+	counter += 1
+	if tick() - lastTick >= 1 then
+		fps = counter
+		counter = 0
+		lastTick = tick()
+		label.Text = "FPS: " .. tostring(fps)
+	end
 end)
 
 -- Notification
@@ -779,23 +920,6 @@ local Button = Tab:CreateButton({
     	end
 })
 
--- TeamCheck Toggle
-local Toggle = Tab:CreateToggle({
-    Name = "TeamCheck",
-    Description = "Only target enemies (not teammates)",
-    CurrentValue = false,
-    Callback = function(Value)
-        teamCheckEnabled = Value
-        if highlightEspEnabled or nameEspEnabled or boxEspEnabled then
-            clearEsp()
-            toggleEsp()
-        end
-        if hitboxEnabled then
-            updateAllHitboxes()
-        end
-    end
-}, "Toggle")
-
 local Button = Tab:CreateButton({
     Name = "Reset WalkSpeed",
     Description = "Resets your WalkSpeed to default (16)",
@@ -819,14 +943,6 @@ local Slider = Tab:CreateSlider({
         end
     end
 }, "WalkSpeedSlider")
-
-local Button = Tab:CreateButton({
-	Name = "Aimlock",
-	Description = "Loads AimlockButton", -- Creates A Description For Users to know what the button does (looks bad if you use it all the time),
-    	Callback = function()
-         loadstring(game:HttpGet("https://raw.githubusercontent.com/hm5650/Aimlock-scriptIg/refs/heads/main/All", true))()
-    	end
-})
 
 local Tab = Window:CreateTab({
 	Name = "Player List",
@@ -975,6 +1091,152 @@ local Slider = Tab:CreateSlider({
         game.Workspace.CurrentCamera.FieldOfView = Value
     end
 }, "FOVSlider")
+
+local Tab = Window:CreateTab({
+	Name = "Aimlock",
+	Icon = "view_in_ar",
+	ImageSource = "Material",
+	ShowTitle = true -- This will determine whether the big header text in the tab will show
+})
+-- Services
+local Players = game:GetService("Players")
+local RunService = game:GetService("RunService")
+local UserInputService = game:GetService("UserInputService")
+local LocalPlayer = Players.LocalPlayer
+local Camera = workspace.CurrentCamera
+
+-- Variables
+local aimlockActive = false
+local showCircle = false
+local circleSize = 100
+local circleColor = Color3.fromRGB(86, 171, 128)
+local lockedTarget = nil
+local circleDrawing = nil
+
+-- Create the circle drawing
+local function createCircle()
+    if not circleDrawing then
+        circleDrawing = Drawing.new("Circle")
+        circleDrawing.Radius = circleSize
+        circleDrawing.Color = circleColor
+        circleDrawing.Thickness = 2
+        circleDrawing.Position = Vector2.new(Camera.ViewportSize.X/2, Camera.ViewportSize.Y/2)
+        circleDrawing.Filled = false
+        circleDrawing.Transparency = 0.8 -- Set default transparency to make it visible
+    end
+end
+
+-- Update circle visibility and properties
+local function updateCircle()
+    createCircle()
+    if circleDrawing then
+        circleDrawing.Visible = showCircle and aimlockActive
+        circleDrawing.Radius = circleSize
+        circleDrawing.Color = circleColor
+        circleDrawing.Position = Vector2.new(Camera.ViewportSize.X/2, Camera.ViewportSize.Y/2)
+
+        -- Debugging information
+        print("Circle updated - Visible:", circleDrawing.Visible, " Size:", circleSize, " Color:", circleColor)
+    else
+        print("Circle not created yet")
+    end
+end
+
+-- Check if teams are enabled and if player is enemy
+local function isEnemy(player)
+    if not LocalPlayer.Team then return true end
+    if not player.Team then return true end
+    return player.Team ~= LocalPlayer.Team
+end
+
+-- Find the nearest target within the circle
+local function findNearestTarget()
+    local closestPlayer = nil
+    local closestDistance = math.huge
+    local screenCenter = Vector2.new(Camera.ViewportSize.X/2, Camera.ViewportSize.Y/2)
+
+    for _, player in pairs(Players:GetPlayers()) do
+        if player ~= LocalPlayer and player.Character and player.Character:FindFirstChild("HumanoidRootPart") then
+            if aimlockActive and (not LocalPlayer.Team or isEnemy(player)) then
+                local rootPart = player.Character.HumanoidRootPart
+                local screenPoint, onScreen = Camera:WorldToViewportPoint(rootPart.Position)
+
+                if onScreen then
+                    local screenPos = Vector2.new(screenPoint.X, screenPoint.Y)
+                    local distance = (screenPos - screenCenter).Magnitude
+
+                    if distance <= circleSize and distance < closestDistance then
+                        closestDistance = distance
+                        closestPlayer = player
+                    end
+                end
+            end
+        end
+    end
+
+    return closestPlayer
+end
+
+-- Aimlock function
+local function aimlock()
+    if not aimlockActive or not LocalPlayer.Character or not LocalPlayer.Character:FindFirstChild("HumanoidRootPart") then
+        lockedTarget = nil
+        return
+    end
+
+    lockedTarget = findNearestTarget()
+
+    if lockedTarget and lockedTarget.Character and lockedTarget.Character:FindFirstChild("HumanoidRootPart") then
+        local targetRoot = lockedTarget.Character.HumanoidRootPart
+        local cameraCFrame = Camera.CFrame
+        local direction = (targetRoot.Position - cameraCFrame.Position).Unit
+        local newCFrame = CFrame.new(cameraCFrame.Position, cameraCFrame.Position + direction)
+        Camera.CFrame = Camera.CFrame:Lerp(newCFrame, 0.5)
+    end
+end
+
+-- Create the toggles and inputs
+local AimlockToggle = Tab:CreateToggle({
+    Name = "Aimlock",
+    Description = "Locks onto the nearest target within the circle",
+    CurrentValue = false,
+    Callback = function(Value)
+        aimlockActive = Value
+        if not Value then lockedTarget = nil end
+        updateCircle()
+    end
+}, "Toggle")
+
+local CircleSizeInput = Tab:CreateInput({
+    Name = "Aimlock circle size",
+    Description = "Set the radius of the aimlock circle",
+    PlaceholderText = "100",
+    CurrentValue = "100",
+    Numeric = true,
+    MaxCharacters = 3,
+    Enter = false,
+    Callback = function(Text)
+        local num = tonumber(Text)
+        if num then
+            circleSize = math.clamp(num, 10, 500)
+            updateCircle()
+        else
+            print("Invalid circle size input")
+        end
+    end
+}, "Input")
+
+-- Connect aimlock and update functions
+RunService.RenderStepped:Connect(function()
+    if aimlockActive then
+        aimlock()
+    end
+    updateCircle()
+end)
+
+Camera:GetPropertyChangedSignal("ViewportSize"):Connect(function()
+    updateCircle()
+end)
 
 local Tab = Window:CreateTab({
     Name = "Hitbox Expander",
@@ -1131,6 +1393,19 @@ local Tab = Window:CreateTab({
 	ImageSource = "Material",
 	ShowTitle = true -- This will determine whether the big header text in the tab will show
 })
+
+local Toggle = Tab:CreateToggle({
+	Name = "Show FPSCounter",
+	Description = nil,
+	CurrentValue = false,
+	Callback = function(Value)
+		if Value then
+			fpsGui.Enabled = true
+		else
+			fpsGui.Enabled = false
+		end
+	end
+}, "Toggle")
 
 local Button = Tab:CreateButton({
 	Name = "BloxStrap",
