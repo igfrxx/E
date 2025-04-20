@@ -120,7 +120,7 @@ local function createEsp(player)
         local billboard = Instance.new("BillboardGui")
         billboard.Name = "SilverWareNameEsp"
         billboard.Adornee = humanoidRootPart
-        billboard.Size = UDim2.new(0, 200, 0, 50)
+        billboard.Size = UDim2.new(0, 100, 0, 40)
         billboard.StudsOffset = Vector3.new(0, 3, 0)
         billboard.AlwaysOnTop = true
         
