@@ -13,7 +13,6 @@ local RunService = game:GetService("RunService")
 local highlightEspEnabled = false
 local nameEspEnabled = false
 local boxEspEnabled = false
-local teamCheckEnabled = true
 local espColor = Color3.fromRGB(86, 171, 128)
 local espObjects = {}
 
@@ -27,52 +26,23 @@ local function getPlayerFromCharacter(character)
     return nil
 end
 
--- Function to check if teams are enabled in the game
-local function areTeamsEnabled()
-    -- Check if the Teams service exists and has teams
-    local success, teamCount = pcall(function() return #Teams:GetTeams() end)
-    if not success then
-        return false
-    end
-    
-    if teamCount > 1 then
-        return true
-    end
-    
-    -- Check if any players are assigned to teams
-    for _, player in ipairs(Players:GetPlayers()) do
-        if player:IsA("Player") and player.Team and player.Team ~= Teams.Neutral then
-            return true
-        end
-    end
-    
-    return false
-end
-
--- Function to check if a player is an enemy
+-- Function to check if a player is an enemy (teamcheck)
 local function isEnemy(player)
     local localPlayer = Players.LocalPlayer
     if not localPlayer or not player or player == localPlayer then
         return false
     end
-    
-    -- If team check is disabled or teams aren't enabled in the game, treat everyone as enemy
-    if not teamCheckEnabled or not areTeamsEnabled() then
+
+    local localTeam = localPlayer.Team
+    local targetTeam = player.Team
+
+    -- If the game doesn't use teams, treat all players (except self) as enemies
+    if Teams:GetChildren() == nil or #Teams:GetChildren() == 0 then
         return true
     end
-    
-    -- If the local player has no team, treat everyone as enemy
-    if not localPlayer.Team or localPlayer.Team == Teams.Neutral then
-        return true
-    end
-    
-    -- If the other player has no team, treat them as enemy
-    if not player.Team then
-        return true
-    end
-    
-    -- Otherwise, check if they're on a different team
-    return player.Team ~= localPlayer.Team
+
+    -- If teams exist, check if they're different
+    return localTeam ~= targetTeam
 end
 
 -- Function to create ESP
@@ -290,7 +260,7 @@ local function applyHitbox(character)
     
     -- Skip if this is the local player's character
     local player = Players:GetPlayerFromCharacter(character)
-    if player and player == Players.LocalPlayer then
+    if not player or player == Players.LocalPlayer or not isEnemy(player) then
         return
     end
     
@@ -400,7 +370,7 @@ local function resetHitbox(character)
     
     -- Skip if this is the local player's character
     local player = Players:GetPlayerFromCharacter(character)
-    if player and player == Players.LocalPlayer then
+    if not player or player == Players.LocalPlayer then
         return
     end
     
@@ -470,14 +440,14 @@ local function trackPlayer(player)
     player.CharacterAdded:Connect(function(character)
         task.wait(1) -- Wait for character to fully load
         
-        if hitboxEnabled then
-            applyHitbox(character)  -- Always apply hitbox regardless of alive state
+        if hitboxEnabled and isEnemy(player) then
+            applyHitbox(character)
         end
     end)
     
     -- Handle existing character
-    if player.Character and hitboxEnabled then
-        applyHitbox(player.Character)  -- Always apply hitbox regardless of alive state
+    if player.Character and hitboxEnabled and isEnemy(player) then
+        applyHitbox(player.Character)
     end
 end
 
@@ -511,6 +481,29 @@ local function toggleHitboxes(enabled)
         end
         resetHitboxesOnAllPlayers()
     end
+end
+
+-- Call functions
+function EspOnlyEnemiesOn()
+    highlightEspEnabled = true
+    nameEspEnabled = false
+    boxEspEnabled = false
+    toggleEsp()
+end
+
+function EspOnlyEnemiesOff()
+    highlightEspEnabled = false
+    nameEspEnabled = false
+    boxEspEnabled = false
+    clearEsp()
+end
+
+function HitboxOnlyEnemiesOn()
+    toggleHitboxes(true)
+end
+
+function HitboxOnlyEnemiesOff()
+    toggleHitboxes(false)
 end
 
 -- FPS Counter
@@ -979,12 +972,12 @@ end)
 
 local Luna = loadstring(game:HttpGet("https://raw.githubusercontent.com/Nebula-Softworks/Luna-Interface-Suite/refs/heads/main/source.lua", true))()
 local Window = Luna:CreateWindow({
-    Name = "SilverWare🍴(v0.4)",
+    Name = "SilverWare🍴(v0.5)",
     Subtitle = "SilverWare On Top!!",
     LogoID = "98445694743887",
     LoadingEnabled = true,
     LoadingTitle = "Starting SilverWare🍴",
-    LoadingSubtitle = "[ Ver, 0.4 ]",
+    LoadingSubtitle = "[ Ver, 0.5 ]",
     ConfigSettings = {
         RootFolder = nil,
         ConfigFolder = "SliverWareConfig"
@@ -1862,7 +1855,7 @@ Tab:CreateDivider()
 
 local Paragraph = Tab:CreateParagraph({
 	Title = "[ UpdateLog ]",
-	Text = "added info tab | added 2 paragraphs | fixed 23 bugs "
+	Text = "Fixed Teamcheck | Fixed 5 bugs "
 })
 
 Luna:Notification({ 
