@@ -979,12 +979,12 @@ end)
 
 local Luna = loadstring(game:HttpGet("https://raw.githubusercontent.com/Nebula-Softworks/Luna-Interface-Suite/refs/heads/main/source.lua", true))()
 local Window = Luna:CreateWindow({
-    Name = "SilverWare🍴(v0.3)",
+    Name = "SilverWare🍴(v0.4)",
     Subtitle = "SilverWare On Top!!",
     LogoID = "98445694743887",
     LoadingEnabled = true,
     LoadingTitle = "Starting SilverWare🍴",
-    LoadingSubtitle = "[ Ver, 0.3 ]",
+    LoadingSubtitle = "[ Ver, 0.4 ]",
     ConfigSettings = {
         RootFolder = nil,
         ConfigFolder = "SliverWareConfig"
@@ -1846,9 +1846,28 @@ local Toggle = Tab:CreateToggle({
     end
 }, "Toggle")
 
+local Tab = Window:CreateTab({
+	Name = "Info",
+	Icon = "info",
+	ImageSource = "Material",
+	ShowTitle = true -- This will determine whether the big header text in the tab will show
+})
+
+local Paragraph = Tab:CreateParagraph({
+	Title = "[ About ]",
+	Text = "SilverWare Is a free Exploit with no KeySystems and it has so many features enough to destroy you're Victims"
+})
+
+Tab:CreateDivider()
+
+local Paragraph = Tab:CreateParagraph({
+	Title = "[ UpdateLog ]",
+	Text = "added info tab | added 2 paragraphs | fixed 23 bugs "
+})
+
 Luna:Notification({ 
 	Title = "🍴 [ Gui Finished Loading ] 🍴",
 	Icon = "notifications_active",
 	ImageSource = "Material",
-	Content = "Have Fun ;)"
+	Content = "Thank You For using SilverWare"
 })
