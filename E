@@ -4,23 +4,16 @@ local RunService = game:GetService("RunService")
 local UserInputService = game:GetService("UserInputService")
 local SoundService = game:GetService("SoundService")
 
--- Services
+-- StoredVariables
 local Players = game:GetService("Players")
 local Teams = game:GetService("Teams")
 local RunService = game:GetService("RunService")
-
--- StoredVariables
-local teamCheckEnabled = true -- Added this variable to control team checking
-
--- Esp Variable
-local Players = game:GetService("Players")
-local Teams = game:GetService("Teams")
 
 -- Configurations
 local highlightEspEnabled = false
 local nameEspEnabled = false
 local boxEspEnabled = false
-local teamCheckEnabled = true -- Added team check toggle
+local teamCheckEnabled = true
 local espColor = Color3.fromRGB(86, 171, 128)
 local espObjects = {}
 
@@ -37,11 +30,12 @@ end
 -- Function to check if teams are enabled in the game
 local function areTeamsEnabled()
     -- Check if the Teams service exists and has teams
-    if not pcall(function() return #Teams:GetTeams() end) then
+    local success, teamCount = pcall(function() return #Teams:GetTeams() end)
+    if not success then
         return false
     end
     
-    if #Teams:GetTeams() > 1 then
+    if teamCount > 1 then
         return true
     end
     
@@ -126,7 +120,7 @@ local function createEsp(player)
         local billboard = Instance.new("BillboardGui")
         billboard.Name = "SilverWareNameEsp"
         billboard.Adornee = humanoidRootPart
-        billboard.Size = UDim2.new(0, 50, 0, 20)
+        billboard.Size = UDim2.new(0, 200, 0, 50)
         billboard.StudsOffset = Vector3.new(0, 3, 0)
         billboard.AlwaysOnTop = true
         
@@ -155,7 +149,7 @@ local function createEsp(player)
         box.Adornee = humanoidRootPart
         box.AlwaysOnTop = true
         box.ZIndex = 10
-        box.Size = Vector3.new(2, 3.5, 1)
+        box.Size = humanoidRootPart.Size * 1.5
         box.Transparency = 0.5
         box.Color3 = espColor
         
@@ -283,44 +277,12 @@ if Players.LocalPlayer and Players.LocalPlayer.Character then
     onCharacterAdded(Players.LocalPlayer.Character, Players.LocalPlayer)
 end
 
-
--- Hitbox Variable
-local Players = game:GetService("Players")
-local RunService = game:GetService("RunService")
-
--- Player variables
-local localPlayer = Players.LocalPlayer
-while not localPlayer do
-    task.wait()
-    localPlayer = Players.LocalPlayer
-end
-
--- Configuration variables
+-- Hitbox Configuration variables
 local hitboxEnabled = false
 local hitboxSize = 10
 local hitboxTransparency = 0.9
 local hitboxColor = Color3.fromRGB(109, 110, 108)
 local hitboxCoroutine = nil
-
--- Improved team detection function
-local function isEnemy(player)
-    if player == localPlayer then
-        return false -- Always return false for local player
-    end
-    
-    -- Check if the game has teams
-    local teams = game:GetService("Teams"):GetTeams()
-    if #teams > 1 then
-        -- Team-based game
-        if localPlayer.Team == nil or player.Team == nil then
-            return true  -- Players not in any team are considered enemies
-        end
-        return localPlayer.Team ~= player.Team
-    else
-        -- Free-for-all game (no teams)
-        return true
-    end
-end
 
 -- Apply hitbox to a character
 local function applyHitbox(character)
@@ -328,17 +290,12 @@ local function applyHitbox(character)
     
     -- Skip if this is the local player's character
     local player = Players:GetPlayerFromCharacter(character)
-    if player and player == localPlayer then
-        return
-    end
-    
-    -- Only apply hitbox if character is alive
-    local humanoid = character:FindFirstChildOfClass("Humanoid")
-    if humanoid and humanoid.Health <= 0 then
+    if player and player == Players.LocalPlayer then
         return
     end
     
     -- Handle R15 characters differently
+    local humanoid = character:FindFirstChildOfClass("Humanoid")
     local isR15 = humanoid and humanoid.RigType == Enum.HumanoidRigType.R15
     
     -- HumanoidRootPart modifications
@@ -349,13 +306,18 @@ local function applyHitbox(character)
             originalSize.Name = "OriginalSize"
             originalSize.Value = rootPart.Size
             originalSize.Parent = rootPart
+            
+            local originalCollide = Instance.new("BoolValue")
+            originalCollide.Name = "OriginalCanCollide"
+            originalCollide.Value = rootPart.CanCollide
+            originalCollide.Parent = rootPart
         end
         
         rootPart.Size = Vector3.new(hitboxSize, hitboxSize, hitboxSize)
         rootPart.Transparency = hitboxTransparency
         rootPart.Color = hitboxColor
         rootPart.Material = Enum.Material.ForceField
-        rootPart.CanCollide = false
+        rootPart.CanCollide = false  -- Always false regardless of alive state
         
         -- For R15, we need to adjust the other parts too
         if isR15 then
@@ -366,12 +328,17 @@ local function applyHitbox(character)
                     originalSize.Name = "OriginalSize"
                     originalSize.Value = lowerTorso.Size
                     originalSize.Parent = lowerTorso
+                    
+                    local originalCollide = Instance.new("BoolValue")
+                    originalCollide.Name = "OriginalCanCollide"
+                    originalCollide.Value = lowerTorso.CanCollide
+                    originalCollide.Parent = lowerTorso
                 end
                 lowerTorso.Size = Vector3.new(hitboxSize, hitboxSize, hitboxSize)
                 lowerTorso.Transparency = hitboxTransparency
                 lowerTorso.Color = hitboxColor
                 lowerTorso.Material = Enum.Material.ForceField
-                lowerTorso.CanCollide = false
+                lowerTorso.CanCollide = false  -- Always false
             end
         end
     end
@@ -384,13 +351,18 @@ local function applyHitbox(character)
             originalSize.Name = "OriginalSize"
             originalSize.Value = head.Size
             originalSize.Parent = head
+            
+            local originalCollide = Instance.new("BoolValue")
+            originalCollide.Name = "OriginalCanCollide"
+            originalCollide.Value = head.CanCollide
+            originalCollide.Parent = head
         end
         
         head.Size = Vector3.new(hitboxSize, hitboxSize, hitboxSize)
         head.Transparency = hitboxTransparency
         head.Color = hitboxColor
         head.Material = Enum.Material.ForceField
-        head.CanCollide = false
+        head.CanCollide = false  -- Always false
         head.Massless = true
     end
     
@@ -405,13 +377,18 @@ local function applyHitbox(character)
                     originalSize.Name = "OriginalSize"
                     originalSize.Value = part.Size
                     originalSize.Parent = part
+                    
+                    local originalCollide = Instance.new("BoolValue")
+                    originalCollide.Name = "OriginalCanCollide"
+                    originalCollide.Value = part.CanCollide
+                    originalCollide.Parent = part
                 end
                 
                 part.Size = Vector3.new(hitboxSize, hitboxSize, hitboxSize)
                 part.Transparency = hitboxTransparency
                 part.Color = hitboxColor
                 part.Material = Enum.Material.ForceField
-                part.CanCollide = false
+                part.CanCollide = false  -- Always false
             end
         end
     end
@@ -423,7 +400,7 @@ local function resetHitbox(character)
     
     -- Skip if this is the local player's character
     local player = Players:GetPlayerFromCharacter(character)
-    if player and player == localPlayer then
+    if player and player == Players.LocalPlayer then
         return
     end
     
@@ -434,17 +411,17 @@ local function resetHitbox(character)
         rootPart.Transparency = 1
         rootPart.Color = Color3.fromRGB(170, 170, 170) -- Default grey color
         rootPart.Material = Enum.Material.Plastic
-        rootPart.CanCollide = true
+        rootPart.CanCollide = rootPart:FindFirstChild("OriginalCanCollide") and rootPart.OriginalCanCollide.Value or true
     end
     
     -- Reset Head
     local head = character:FindFirstChild("Head")
     if head and head:FindFirstChild("OriginalSize") then
         head.Size = head.OriginalSize.Value
-        head.Transparency = 1
+        head.Transparency = 0
         head.Color = Color3.fromRGB(170, 170, 170) -- Default grey color
         head.Material = Enum.Material.Plastic
-        head.CanCollide = true
+        head.CanCollide = head:FindFirstChild("OriginalCanCollide") and head.OriginalCanCollide.Value or true
         head.Massless = false
     end
     
@@ -458,10 +435,10 @@ local function resetHitbox(character)
             local part = character:FindFirstChild(partName)
             if part and part:FindFirstChild("OriginalSize") then
                 part.Size = part.OriginalSize.Value
-                part.Transparency = 1
+                part.Transparency = 0
                 part.Color = Color3.fromRGB(170, 170, 170) -- Default grey color
                 part.Material = Enum.Material.Plastic
-                part.CanCollide = true
+                part.CanCollide = part:FindFirstChild("OriginalCanCollide") and part.OriginalCanCollide.Value or true
             end
         end
     end
@@ -489,48 +466,18 @@ end
 local function trackPlayer(player)
     if not player then return end
     
-    if isEnemy(player) then
-        -- Handle character added (respawn)
-        player.CharacterAdded:Connect(function(character)
-            task.wait(1) -- Wait for character to fully load
-            
-            -- Track humanoid for death events
-            local humanoid = character:WaitForChild("Humanoid")
-            
-            -- Function to handle hitbox state based on health
-            local function updateHitboxState()
-                if hitboxEnabled then
-                    if humanoid.Health > 0 then
-                        -- Character is alive - apply expanded hitbox
-                        applyHitbox(character)
-                    else
-                        -- Character is dead - reset to normal hitbox
-                        resetHitbox(character)
-                    end
-                end
-            end
-            
-            -- Initial update
-            updateHitboxState()
-            
-            -- Connect health changed event
-            humanoid.HealthChanged:Connect(updateHitboxState)
-        end)
+    -- Handle character added (respawn)
+    player.CharacterAdded:Connect(function(character)
+        task.wait(1) -- Wait for character to fully load
         
-        -- Handle existing character
-        if player.Character then
-            local humanoid = player.Character:FindFirstChildOfClass("Humanoid")
-            if humanoid then
-                -- Initial hitbox state
-                if hitboxEnabled then
-                    if humanoid.Health > 0 then
-                        applyHitbox(player.Character)
-                    else
-                        resetHitbox(player.Character)
-                    end
-                end
-            end
+        if hitboxEnabled then
+            applyHitbox(character)  -- Always apply hitbox regardless of alive state
         end
+    end)
+    
+    -- Handle existing character
+    if player.Character and hitboxEnabled then
+        applyHitbox(player.Character)  -- Always apply hitbox regardless of alive state
     end
 end
 
@@ -566,7 +513,7 @@ local function toggleHitboxes(enabled)
     end
 end
 
--- FPS Counter Variable
+-- FPS Counter
 local fpsGui = Instance.new("ScreenGui")
 fpsGui.Name = "FPSCounterGui"
 fpsGui.ResetOnSpawn = false
@@ -577,7 +524,7 @@ local frame = Instance.new("Frame")
 frame.Size = UDim2.new(0, 120, 0, 50)
 frame.Position = UDim2.new(0, 10, 0, 10)
 frame.BackgroundColor3 = Color3.fromRGB(20, 20, 20)
-frame.BackgroundTransparency = 0.2
+frame.BackgroundTransparency = 1
 frame.BorderSizePixel = 0
 frame.Active = true
 frame.Draggable = true
@@ -596,7 +543,7 @@ label.Parent = frame
 local fps = 0
 local counter = 0
 local lastTick = tick()
-local fpsConnection = nil -- Store the connection so we can disconnect it later
+local fpsConnection = nil
 
 local function updateFPS()
     counter += 1
@@ -604,7 +551,23 @@ local function updateFPS()
         fps = counter
         counter = 0
         lastTick = tick()
-        label.Text = "FPS: " .. tostring(fps)
+        label.Text = "FPS: " .. tostring(math.floor(fps))
+    end
+end
+
+-- Function to toggle FPS counter
+local function toggleFpsCounter(enable)
+    if enable then
+        if not fpsConnection then
+            fpsConnection = RunService.RenderStepped:Connect(updateFPS)
+        end
+        fpsGui.Enabled = true
+    else
+        if fpsConnection then
+            fpsConnection:Disconnect()
+            fpsConnection = nil
+        end
+        fpsGui.Enabled = false
     end
 end
 
@@ -1016,12 +979,12 @@ end)
 
 local Luna = loadstring(game:HttpGet("https://raw.githubusercontent.com/Nebula-Softworks/Luna-Interface-Suite/refs/heads/main/source.lua", true))()
 local Window = Luna:CreateWindow({
-    Name = "SilverWare🍴(v0.1)",
-    Subtitle = nil,
+    Name = "SilverWare🍴(v0.2)",
+    Subtitle = "SilverWare On Top!!",
     LogoID = "98445694743887",
     LoadingEnabled = true,
     LoadingTitle = "Starting SilverWare🍴",
-    LoadingSubtitle = "[ Ver, 0.1 ]",
+    LoadingSubtitle = "[ Ver, 0.2 ]",
     ConfigSettings = {
         RootFolder = nil,
         ConfigFolder = "SliverWareConfig"
@@ -1031,7 +994,7 @@ local Window = Luna:CreateWindow({
 
 local Tab = Window:CreateTab({
     Name = "Settings",
-    Icon = "view_in_ar",
+    Icon = "settings",
     ImageSource = "Material",
     ShowTitle = true
 })
@@ -1116,9 +1079,11 @@ local Button = Tab:CreateButton({
     	end
 })
 
+Tab:CreateDivider()
+
 local Tab = Window:CreateTab({
-	Name = "Player List",
-	Icon = "view_in_ar",
+	Name = "PlayerList",
+	Icon = "group",
 	ImageSource = "Material",
 	ShowTitle = true -- This will determine whether the big header text in the tab will show
 })
@@ -1162,7 +1127,7 @@ local Button = Tab:CreateButton({
 -- Create the Visuals tab
 local Tab = Window:CreateTab({
     Name = "Visuals",
-    Icon = "view_in_ar",
+    Icon = "visibility",
     ImageSource = "Material",
     ShowTitle = true
 })
@@ -1266,7 +1231,7 @@ local Slider = Tab:CreateSlider({
 
 local Tab = Window:CreateTab({
 	Name = "Aimlock",
-	Icon = "view_in_ar",
+	Icon = "gps_fixed",
 	ImageSource = "Material",
 	ShowTitle = true -- This will determine whether the big header text in the tab will show
 })
@@ -1717,7 +1682,7 @@ getgenv().HitbloxCleanup = cleanup
 
 local Tab = Window:CreateTab({
 	Name = "Trolling",
-	Icon = "view_in_ar",
+	Icon = "sentiment_very_satisfied",
 	ImageSource = "Material",
 	ShowTitle = true -- This will determine whether the big header text in the tab will show
 })
@@ -1741,7 +1706,7 @@ local Button = Tab:CreateButton({
 
 local Tab = Window:CreateTab({
 	Name = "Admins",
-	Icon = "view_in_ar",
+	Icon = "admin_panel_settings",
 	ImageSource = "Material",
 	ShowTitle = true -- This will determine whether the big header text in the tab will show
 })
@@ -1780,7 +1745,7 @@ local Button = Tab:CreateButton({
 
 local Tab = Window:CreateTab({
 	Name = "Misc",
-	Icon = "view_in_ar",
+	Icon = "dashboard",
 	ImageSource = "Material",
 	ShowTitle = true -- This will determine whether the big header text in the tab will show
 })
@@ -1820,12 +1785,12 @@ local Button = Tab:CreateButton({
 	Name = "Shiftlock",
 	Description = "ShiftLock Button", -- Creates A Description For Users to know what the button does (looks bad if you use it all the time),
     	Callback = function()
-         loadstring(game:HttpGet('https://pastebin.com/raw/WQ9NPeDS'))()
+         loadstring(game:HttpGet("https://github.com/ltseverydayyou/uuuuuuu/blob/main/shiftlock?raw=true"))()
     	end
 })
 
 Luna:Notification({ 
-	Title = "[ Gui Finished Loading ]",
+	Title = "🍴 [ Gui Finished Loading ] 🍴",
 	Icon = "notifications_active",
 	ImageSource = "Material",
 	Content = "Have Fun ;)"
