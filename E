@@ -1071,6 +1071,8 @@ local Slider = Tab:CreateSlider({
     end
 }, "WalkSpeedSlider")
 
+Tab:CreateDivider()
+
 local Button = Tab:CreateButton({
 	Name = "Show Console",
 	Description = nil, -- Creates A Description For Users to know what the button does (looks bad if you use it all the time),
@@ -1078,8 +1080,6 @@ local Button = Tab:CreateButton({
          game:GetService("StarterGui"):SetCore("DevConsoleVisible",true)
     	end
 })
-
-Tab:CreateDivider()
 
 local Tab = Window:CreateTab({
 	Name = "PlayerList",
@@ -1123,6 +1123,8 @@ local Button = Tab:CreateButton({
         end
     end
 })
+
+Tab:CreateDivider()
 
 -- Create the Visuals tab
 local Tab = Window:CreateTab({
@@ -1185,6 +1187,8 @@ local Toggle = Tab:CreateToggle({
         end
     end
 }, "Toggle")
+
+Tab:CreateDivider()
 
 -- Color Picker
 local ColorPicker = Tab:CreateColorPicker({
@@ -1528,6 +1532,8 @@ local Toggle = Tab:CreateToggle({
     end
 }, "Toggle")
 
+Tab:CreateDivider()
+
 -- Input for changing aimlock circle size
 local Input1 = Tab:CreateInput({
     Name = "Fov Size",
@@ -1586,6 +1592,8 @@ local Input3 = Tab:CreateInput({
     end
 }, "Input3")
 
+Tab:CreateDivider()
+
 -- Color picker for changing aimlock circle color
 local ColorPicker = Tab:CreateColorPicker({
     Name = "FovColor",
@@ -1614,6 +1622,8 @@ local Toggle = Tab:CreateToggle({
         toggleHitboxes(Value)
     end
 }, "Toggle")
+
+Tab:CreateDivider()
 
 local SizeInput = Tab:CreateInput({
     Name = "Hitbox Size",
@@ -1652,6 +1662,8 @@ local TransparencyInput = Tab:CreateInput({
         end
     end
 }, "Input")
+
+Tab:CreateDivider()
 
 local ColorPicker = Tab:CreateColorPicker({
     Name = "HitboxColor",
@@ -1735,6 +1747,8 @@ local Button = Tab:CreateButton({
     	end
 })
 
+Tab:CreateDivider()
+
 local Button = Tab:CreateButton({
 	Name = "TerminalCmd",
 	Description = "Try Our AdminPanel :D", -- Creates A Description For Users to know what the button does (looks bad if you use it all the time),
@@ -1773,6 +1787,25 @@ local Toggle = Tab:CreateToggle({
     end
 }, "Toggle")
 
+local Toggle = Tab:CreateToggle({
+    Name = "Auto Clicker",
+    Description = "Automatically clicks for you",
+    CurrentValue = false,
+    Callback = function(Value)
+        getgenv().autoClickerEnabled = Value
+        if Value then
+            spawn(function()
+                while getgenv().autoClickerEnabled and task.wait(0.1) do
+                    local player = game.Players.LocalPlayer
+                    if player and player:GetMouse() then
+                        mouse1click()
+                    end
+                end
+            end)
+        end
+    end
+}, "Toggle")
+
 local Button = Tab:CreateButton({
 	Name = "BloxStrap",
 	Description = "bloxStrap from temu", -- Creates A Description For Users to know what the button does (looks bad if you use it all the time),
@@ -1788,6 +1821,25 @@ local Button = Tab:CreateButton({
          loadstring(game:HttpGet("https://github.com/ltseverydayyou/uuuuuuu/blob/main/shiftlock?raw=true"))()
     	end
 })
+
+local Toggle = Tab:CreateToggle({
+    Name = "Anti-AFK",
+    Description = "Prevents you from being kicked for inactivity",
+    CurrentValue = false,
+    Callback = function(Value)
+        if Value then
+            getgenv().antiAFKConnection = game:GetService("Players").LocalPlayer.Idled:Connect(function()
+                game:GetService("VirtualUser"):Button2Down(Vector2.new(0,0), workspace.CurrentCamera.CFrame)
+                task.wait(1)
+                game:GetService("VirtualUser"):Button2Up(Vector2.new(0,0), workspace.CurrentCamera.CFrame)
+            end)
+        else
+            if getgenv().antiAFKConnection then
+                getgenv().antiAFKConnection:Disconnect()
+            end
+        end
+    end
+}, "Toggle")
 
 Luna:Notification({ 
 	Title = "🍴 [ Gui Finished Loading ] 🍴",
