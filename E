@@ -979,12 +979,12 @@ end)
 
 local Luna = loadstring(game:HttpGet("https://raw.githubusercontent.com/Nebula-Softworks/Luna-Interface-Suite/refs/heads/main/source.lua", true))()
 local Window = Luna:CreateWindow({
-    Name = "SilverWare🍴(v0.2)",
+    Name = "SilverWare🍴(v0.3)",
     Subtitle = "SilverWare On Top!!",
     LogoID = "98445694743887",
     LoadingEnabled = true,
     LoadingTitle = "Starting SilverWare🍴",
-    LoadingSubtitle = "[ Ver, 0.2 ]",
+    LoadingSubtitle = "[ Ver, 0.3 ]",
     ConfigSettings = {
         RootFolder = nil,
         ConfigFolder = "SliverWareConfig"
@@ -1611,6 +1611,11 @@ local Tab = Window:CreateTab({
     Icon = "view_in_ar",
     ImageSource = "Material",
     ShowTitle = true
+})
+
+local Label = Tab:CreateLabel({
+	Text = "[ May Lag On Low-Ends ]",
+	Style = 3 -- Luna Labels Have 3 Styles : A Basic Label, A Green Information Label and A Red Warning Label. Look At The Following Image For More Details
 })
 
 -- Create the UI elements
