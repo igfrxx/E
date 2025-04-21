@@ -5,6 +5,7 @@ local UserInputService = game:GetService("UserInputService")
 local SoundService = game:GetService("SoundService")
 
 -- StoredVariables
+-- Esp
 local Players = game:GetService("Players")
 local Teams = game:GetService("Teams")
 local RunService = game:GetService("RunService")
@@ -13,8 +14,13 @@ local RunService = game:GetService("RunService")
 local highlightEspEnabled = false
 local nameEspEnabled = false
 local boxEspEnabled = false
+local distanceEspEnabled = false
+local healthEspEnabled = false
 local espColor = Color3.fromRGB(86, 171, 128)
 local espObjects = {}
+local espDistanceFormat = "%.1f" -- Format for distance display (1 decimal place)
+local maxDistance = 1000 -- Max distance to show ESP
+local teamCheckEnabled = true -- Whether to only show enemies
 
 -- Function to safely get player from character
 local function getPlayerFromCharacter(character)
@@ -28,6 +34,10 @@ end
 
 -- Function to check if a player is an enemy (teamcheck)
 local function isEnemy(player)
+    if not teamCheckEnabled then
+        return player ~= Players.LocalPlayer
+    end
+    
     local localPlayer = Players.LocalPlayer
     if not localPlayer or not player or player == localPlayer then
         return false
@@ -43,6 +53,89 @@ local function isEnemy(player)
 
     -- If teams exist, check if they're different
     return localTeam ~= targetTeam
+end
+
+-- Function to calculate distance between two positions
+local function calculateDistance(position1, position2)
+    if not position1 or not position2 then return 0 end
+    return (position1 - position2).Magnitude
+end
+
+-- Function to format distance for display
+local function formatDistance(distance)
+    return string.format(espDistanceFormat, distance)
+end
+
+-- Function to update ESP information (distance, health, etc)
+local function updateEspInfo()
+    local localPlayer = Players.LocalPlayer
+    if not localPlayer or not localPlayer.Character then return end
+    
+    local localRoot = localPlayer.Character:FindFirstChild("HumanoidRootPart")
+    if not localRoot then return end
+    
+    for player, objects in pairs(espObjects) do
+        if player and player:IsA("Player") and player.Character then
+            local character = player.Character
+            local humanoidRootPart = character:FindFirstChild("HumanoidRootPart")
+            local humanoid = character:FindFirstChildOfClass("Humanoid")
+            
+            if humanoidRootPart then
+                -- Update distance display
+                if distanceEspEnabled then
+                    local distance = calculateDistance(localRoot.Position, humanoidRootPart.Position)
+                    if distance <= maxDistance then
+                        for _, obj in pairs(objects) do
+                            if obj:IsA("BillboardGui") and obj.Name == "SilverWareNameEsp" then
+                                local textLabel = obj:FindFirstChild("TextLabel")
+                                if textLabel then
+                                    local displayText = player.Name
+                                    if healthEspEnabled and humanoid then
+                                        displayText = displayText .. "\nHP: " .. math.floor(humanoid.Health) .. "/" .. math.floor(humanoid.MaxHealth)
+                                    end
+                                    if distanceEspEnabled then
+                                        displayText = displayText .. "\n" .. formatDistance(distance) .. "m"
+                                    end
+                                    textLabel.Text = displayText
+                                end
+                            end
+                        end
+                    else
+                        -- Hide ESP if beyond max distance
+                        for _, obj in pairs(objects) do
+                            if obj and obj.Parent then
+                                obj.Enabled = false
+                            end
+                        end
+                    end
+                end
+                
+                -- Update health color if health ESP is enabled
+                if healthEspEnabled and humanoid then
+                    local healthPercent = humanoid.Health / humanoid.MaxHealth
+                    local healthColor
+                    if healthPercent > 0.7 then
+                        healthColor = Color3.new(0, 1, 0) -- Green
+                    elseif healthPercent > 0.3 then
+                        healthColor = Color3.new(1, 1, 0) -- Yellow
+                    else
+                        healthColor = Color3.new(1, 0, 0) -- Red
+                    end
+                    
+                    for _, obj in pairs(objects) do
+                        if obj:IsA("Highlight") then
+                            obj.FillColor = healthColor
+                            obj.OutlineColor = healthColor
+                        elseif obj:IsA("BoxHandleAdornment") then
+                            obj.Color3 = healthColor
+                        elseif obj:IsA("BillboardGui") and obj:FindFirstChild("TextLabel") then
+                            obj.TextLabel.TextColor3 = healthColor
+                        end
+                    end
+                end
+            end
+        end
+    end
 end
 
 -- Function to create ESP
@@ -66,8 +159,8 @@ local function createEsp(player)
         espObjects[player] = nil
     end
 
-    -- Only create ESP for enemies
-    if not isEnemy(player) then return end
+    -- Only create ESP for enemies if team check is enabled
+    if teamCheckEnabled and not isEnemy(player) then return end
 
     -- Create new ESP objects
     espObjects[player] = {}
@@ -85,12 +178,12 @@ local function createEsp(player)
         table.insert(espObjects[player], highlight)
     end
 
-    -- Name ESP
-    if nameEspEnabled then
+    -- Name ESP (also shows distance and health if enabled)
+    if nameEspEnabled or distanceEspEnabled or healthEspEnabled then
         local billboard = Instance.new("BillboardGui")
         billboard.Name = "SilverWareNameEsp"
         billboard.Adornee = humanoidRootPart
-        billboard.Size = UDim2.new(0, 100, 0, 40)
+        billboard.Size = UDim2.new(0, 200, 0, 60) -- Larger to accommodate extra info
         billboard.StudsOffset = Vector3.new(0, 3, 0)
         billboard.AlwaysOnTop = true
         
@@ -101,7 +194,10 @@ local function createEsp(player)
         textLabel.TextStrokeTransparency = 0
         textLabel.TextColor3 = espColor
         textLabel.TextStrokeColor3 = Color3.new(0, 0, 0)
-        textLabel.TextScaled = true
+        textLabel.TextScaled = false
+        textLabel.TextSize = 14
+        textLabel.Font = Enum.Font.GothamBold
+        textLabel.TextYAlignment = Enum.TextYAlignment.Top
         textLabel.Parent = billboard
         
         if humanoidRootPart and humanoidRootPart.Parent then
@@ -130,6 +226,21 @@ local function createEsp(player)
             box:Destroy()
         end
     end
+    
+    -- Tracer ESP (line from bottom of screen to player)
+    if tracerEspEnabled then
+        local tracer = Instance.new("Frame")
+        tracer.Name = "SilverWareTracerEsp"
+        tracer.BackgroundColor3 = espColor
+        tracer.BorderSizePixel = 0
+        tracer.Size = UDim2.new(0, 1, 0, 1000) -- Long vertical line
+        tracer.AnchorPoint = Vector2.new(0.5, 1)
+        tracer.Position = UDim2.new(0.5, 0, 1, 0)
+        tracer.Parent = game:GetService("CoreGui")
+        
+        -- Store reference to update position later
+        table.insert(espObjects[player], tracer)
+    end
 end
 
 -- Function to update ESP color
@@ -140,12 +251,20 @@ local function updateEspColor(newColor)
             for _, obj in pairs(objects) do
                 if obj and obj.Parent then
                     if obj:IsA("Highlight") then
-                        obj.FillColor = newColor
-                        obj.OutlineColor = newColor
+                        if not healthEspEnabled then
+                            obj.FillColor = newColor
+                            obj.OutlineColor = newColor
+                        end
                     elseif obj:IsA("BillboardGui") and obj:FindFirstChild("TextLabel") then
-                        obj.TextLabel.TextColor3 = newColor
+                        if not healthEspEnabled then
+                            obj.TextLabel.TextColor3 = newColor
+                        end
                     elseif obj:IsA("BoxHandleAdornment") then
-                        obj.Color3 = newColor
+                        if not healthEspEnabled then
+                            obj.Color3 = newColor
+                        end
+                    elseif obj:IsA("Frame") and obj.Name == "SilverWareTracerEsp" then
+                        obj.BackgroundColor3 = newColor
                     end
                 end
             end
@@ -187,7 +306,7 @@ local function onCharacterAdded(character, player)
     if not humanoidRootPart or not humanoid then return end
     
     -- Check if ESP should be created
-    if highlightEspEnabled or nameEspEnabled or boxEspEnabled then
+    if highlightEspEnabled or nameEspEnabled or boxEspEnabled or distanceEspEnabled or healthEspEnabled then
         createEsp(player)
     end
     
@@ -246,6 +365,13 @@ Players.PlayerRemoving:Connect(onPlayerRemoving)
 if Players.LocalPlayer and Players.LocalPlayer.Character then
     onCharacterAdded(Players.LocalPlayer.Character, Players.LocalPlayer)
 end
+
+-- Create a loop to update ESP information
+local espUpdateLoop = RunService.RenderStepped:Connect(function()
+    if highlightEspEnabled or nameEspEnabled or boxEspEnabled or distanceEspEnabled or healthEspEnabled then
+        updateEspInfo()
+    end
+end)
 
 -- Hitbox Configuration variables
 local hitboxEnabled = false
@@ -973,11 +1099,11 @@ end)
 local Luna = loadstring(game:HttpGet("https://raw.githubusercontent.com/Nebula-Softworks/Luna-Interface-Suite/refs/heads/main/source.lua", true))()
 local Window = Luna:CreateWindow({
     Name = "SilverWare🍴",
-    Subtitle = "(v0.6)",
+    Subtitle = "(v0.7)",
     LogoID = "98445694743887",
     LoadingEnabled = true,
     LoadingTitle = "Starting SilverWare🍴",
-    LoadingSubtitle = "[ Ver, 0.6 ]",
+    LoadingSubtitle = "[ Ver, 0.7 ]",
     ConfigSettings = {
         RootFolder = nil,
         ConfigFolder = "SliverWareConfig"
@@ -1127,94 +1253,101 @@ local Tab = Window:CreateTab({
     ShowTitle = true
 })
 
--- Highlight ESP Toggle
-local Toggle = Tab:CreateToggle({
-    Name = "HighlightEsp",
-    Description = "Highlights players with a colored outline",
-    CurrentValue = false,
+
+local HighlightToggle = Tab:CreateToggle({
+    Name = "Highlight ESP",
+    Description = "Highlights player characters",
+    CurrentValue = highlightEspEnabled,
     Callback = function(Value)
         highlightEspEnabled = Value
-        if Value then
-            toggleEsp()
-        else
-            clearEsp()
-            if nameEspEnabled or boxEspEnabled then
-                toggleEsp()
-            end
-        end
+        toggleEsp()
     end
-}, "Toggle")
+}, "HighlightToggle")
 
--- Name ESP Toggle
-local Toggle = Tab:CreateToggle({
-    Name = "NameEsp",
-    Description = "Shows player names above their heads",
-    CurrentValue = false,
+local NameToggle = Tab:CreateToggle({
+    Name = "Name ESP",
+    Description = "Shows player names above characters",
+    CurrentValue = nameEspEnabled,
     Callback = function(Value)
         nameEspEnabled = Value
-        if Value then
-            toggleEsp()
-        else
-            clearEsp()
-            if highlightEspEnabled or boxEspEnabled then
-                toggleEsp()
-            end
-        end
+        toggleEsp()
     end
-}, "Toggle")
+}, "NameToggle")
 
--- Box ESP Toggle
-local Toggle = Tab:CreateToggle({
-    Name = "BoxEsp",
-    Description = "Draws a box around players",
-    CurrentValue = false,
+local BoxToggle = Tab:CreateToggle({
+    Name = "Box ESP",
+    Description = "Draws boxes around player characters",
+    CurrentValue = boxEspEnabled,
     Callback = function(Value)
         boxEspEnabled = Value
-        if Value then
-            toggleEsp()
-        else
-            clearEsp()
-            if highlightEspEnabled or nameEspEnabled then
-                toggleEsp()
-            end
-        end
+        toggleEsp()
     end
-}, "Toggle")
+}, "BoxToggle")
+
+local DistanceToggle = Tab:CreateToggle({
+    Name = "Distance ESP",
+    Description = "Shows distance to players",
+    CurrentValue = distanceEspEnabled,
+    Callback = function(Value)
+        distanceEspEnabled = Value
+        toggleEsp()
+    end
+}, "DistanceToggle")
+
+local HealthToggle = Tab:CreateToggle({
+    Name = "Health ESP",
+    Description = "Shows health and changes color based on health",
+    CurrentValue = healthEspEnabled,
+    Callback = function(Value)
+        healthEspEnabled = Value
+        toggleEsp()
+    end
+}, "HealthToggle")
 
 Tab:CreateDivider()
 
--- Color Picker
+local TeamCheckToggle = Tab:CreateToggle({
+    Name = "Team Check",
+    Description = "Only show ESP for enemy team",
+    CurrentValue = teamCheckEnabled,
+    Callback = function(Value)
+        teamCheckEnabled = Value
+        toggleEsp()
+    end
+}, "TeamCheckToggle")
+
 local ColorPicker = Tab:CreateColorPicker({
-    Name = "Esp Color",
-    Color = Color3.fromRGB(86, 171, 128),
-    Flag = "ColorPicker1",
+    Name = "ESP Color",
+    Description = "Color for ESP elements",
+    Color = espColor,
     Callback = function(Value)
         updateEspColor(Value)
     end
-}, "ColorPicker")
+}, "EspColorPicker")
 
--- Initialize ESP for existing players if any toggle is enabled
-Players.PlayerAdded:Connect(function(player)
-    player.CharacterAdded:Connect(function(character)
-        wait(1) -- Wait for character to fully load
-        if highlightEspEnabled or nameEspEnabled or boxEspEnabled then
-            createEsp(player)
+local MaxDistanceInput = Tab:CreateInput({
+    Name = "Max Distance",
+    Description = "Maximum distance to show ESP (in studs)",
+    PlaceholderText = tostring(maxDistance),
+    CurrentValue = tostring(maxDistance),
+    Numeric = true,
+    Callback = function(Text)
+        local num = tonumber(Text)
+        if num then
+            maxDistance = num
+            toggleEsp()
         end
-    end)
-end)
-
--- Initialize ESP for existing players
-for _, player in ipairs(Players:GetPlayers()) do
-    if player.Character and (highlightEspEnabled or nameEspEnabled or boxEspEnabled) then
-        createEsp(player)
     end
-    player.CharacterAdded:Connect(function(character)
-        wait(1) -- Wait for character to fully load
-        if highlightEspEnabled or nameEspEnabled or boxEspEnabled then
-            createEsp(player)
-        end
-    end)
-end
+}, "MaxDistanceInput")
+
+local ClearEspButton = Tab:CreateButton({
+    Name = "Clear All ESP",
+    Description = "Removes all ESP elements",
+    Callback = function()
+        clearEsp()
+    end
+}, "ClearEspButton")
+
 
 local Slider = Tab:CreateSlider({
     Name = "FOV Slider",
@@ -1868,7 +2001,7 @@ Tab:CreateDivider()
 
 local Paragraph = Tab:CreateParagraph({
 	Title = "[ UpdateLog ]",
-	Text = "Fixed Aimlock's Not Working Inputs | No Bugs Yet"
+	Text = "Added More Stuff To The EspTab | Bugs Fixed 4"
 })
 
 Luna:Notification({ 
