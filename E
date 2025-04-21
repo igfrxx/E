@@ -702,19 +702,24 @@ fpsGui.Parent = game:GetService("CoreGui")
 local frame = Instance.new("Frame")
 frame.Size = UDim2.new(0, 120, 0, 50)
 frame.Position = UDim2.new(0, 10, 0, 10)
-frame.BackgroundColor3 = Color3.fromRGB(20, 20, 20)
-frame.BackgroundTransparency = 1
+frame.BackgroundColor3 = Color3.fromRGB(109, 110, 108)
+frame.BackgroundTransparency = 0.3
 frame.BorderSizePixel = 0
 frame.Active = true
 frame.Draggable = true
 frame.Parent = fpsGui
 
+local corner = Instance.new("UICorner")
+corner.CornerRadius = UDim.new(0, 12) -- You can adjust the radius as needed
+corner.Parent = frame
+
 local label = Instance.new("TextLabel")
 label.Size = UDim2.new(1, 0, 1, 0)
 label.BackgroundTransparency = 1
 label.TextColor3 = Color3.new(1, 1, 1)
-label.TextScaled = true
-label.Font = Enum.Font.Arcade
+label.TextScaled = false
+label.TextSize = 14 -- Adjust this number to make it smaller or larger
+label.Font = Enum.Font.Gotham
 label.Text = "FPS: 0"
 label.Parent = frame
 
@@ -1159,11 +1164,11 @@ end)
 local Luna = loadstring(game:HttpGet("https://raw.githubusercontent.com/Nebula-Softworks/Luna-Interface-Suite/refs/heads/main/source.lua", true))()
 local Window = Luna:CreateWindow({
     Name = "SilverWare🍴",
-    Subtitle = "(v0.7)",
+    Subtitle = "(v0.8)",
     LogoID = "98445694743887",
     LoadingEnabled = true,
     LoadingTitle = "Starting SilverWare🍴",
-    LoadingSubtitle = "[ Ver, 0.7 ]",
+    LoadingSubtitle = "[ Ver, 0.8 ]",
     ConfigSettings = {
         RootFolder = nil,
         ConfigFolder = "SliverWareConfig"
@@ -1179,18 +1184,18 @@ local Tab = Window:CreateTab({
 })
 
 local Button = Tab:CreateButton({
-	Name = "Antikick",
-	Description = "Deletes AntiCheat", -- Creates A Description For Users to know what the button does (looks bad if you use it all the time),
+	Name = "AntiKick",
+	Description = nil, -- Creates A Description For Users to know what the button does (looks bad if you use it all the time),
     	Callback = function()
          loadstring(game:HttpGet("https://raw.githubusercontent.com/OBFhm5650lol/AntkickLol/refs/heads/main/Antikicklol"))()
     	end
 })
 
 local Button = Tab:CreateButton({
-	Name = "AntiLag",
+	Name = "AntiKick 2",
 	Description = nil, -- Creates A Description For Users to know what the button does (looks bad if you use it all the time),
     	Callback = function()
-         loadstring(game:HttpGet("https://pastebin.com/raw/zJztwUg1", true))()
+         loadstring(game:HttpGet("https://raw.githubusercontent.com/welomenchaina/Loader/refs/heads/main/AntiKickLoader",true))()
     	end
 })
 
@@ -1305,6 +1310,183 @@ local Button = Tab:CreateButton({
 
 Tab:CreateDivider()
 
+local Tab = Window:CreateTab({
+    Name = "FpsBooster",
+    Icon = "build",
+    ImageSource = "Material",
+    ShowTitle = true
+})
+
+-- In your Toggle callback:
+local Toggle = Tab:CreateToggle({
+    Name = "Show FPSCounter",
+    Description = nil,
+    CurrentValue = false,
+    Callback = function(Value)
+        if Value then
+            fpsGui.Enabled = true
+            -- Only create a new connection if one doesn't exist
+            if not fpsConnection then
+                fpsConnection = RunService.RenderStepped:Connect(updateFPS)
+            end
+        else
+            fpsGui.Enabled = false
+            -- Disconnect the connection if it exists
+            if fpsConnection then
+                fpsConnection:Disconnect()
+                fpsConnection = nil
+            end
+        end
+    end
+}, "Toggle")
+
+Tab:CreateDivider()
+
+-- Main AntiLag Button
+local Button = Tab:CreateButton({
+    Name = "AntiLag",
+    Description = "Optimizes game performance with multiple tweaks",
+    Callback = function()
+        loadstring(game:HttpGet("https://pastebin.com/raw/zJztwUg1", true))()
+    end
+})
+
+local Button = Tab:CreateButton({
+    Name = "AntiLag 2",
+    Description = "Optimizes game performance with multiple tweaks",
+    Callback = function()
+        loadstring(game:HttpGet("https://pastebin.com/raw/8YZ2cc6V"))()
+    end
+})
+
+Tab:CreateDivider()
+
+-- Remove Fog Toggle
+local RemoveFogToggle = Tab:CreateToggle({
+    Name = "Remove Fog",
+    Description = "Disables all fog effects in the game",
+    CurrentValue = false,
+    Callback = function(Value)
+        if Value then
+            game:GetService("Lighting").FogEnd = 9e9
+            game:GetService("Lighting").FogStart = 9e9
+        else
+            game:GetService("Lighting").FogEnd = 1000
+            game:GetService("Lighting").FogStart = 0
+        end
+    end
+})
+
+-- Low Quality Textures Toggle
+local LowQualityToggle = Tab:CreateToggle({
+    Name = "Low Quality Textures",
+    Description = "Reduces texture quality for better performance",
+    CurrentValue = false,
+    Callback = function(Value)
+        if Value then
+            settings().Rendering.QualityLevel = 1
+        else
+            settings().Rendering.QualityLevel = 21
+        end
+    end
+})
+
+-- Disable Shadows Toggle
+local ShadowsToggle = Tab:CreateToggle({
+    Name = "Disable Shadows",
+    Description = "Turns off all shadow effects",
+    CurrentValue = false,
+    Callback = function(Value)
+        if Value then
+            game:GetService("Lighting").GlobalShadows = false
+        else
+            game:GetService("Lighting").GlobalShadows = true
+        end
+    end
+})
+
+-- Remove Particles Toggle
+local ParticlesToggle = Tab:CreateToggle({
+    Name = "Remove Particles",
+    Description = "Disables all particle effects",
+    CurrentValue = false,
+    Callback = function(Value)
+        for _, v in pairs(workspace:GetDescendants()) do
+            if v:IsA("ParticleEmitter") then
+                v.Enabled = not Value
+            end
+        end
+    end
+})
+
+-- Disable Terrain Water Toggle
+local WaterToggle = Tab:CreateToggle({
+    Name = "Disable Terrain Water",
+    Description = "Removes water effects from terrain",
+    CurrentValue = false,
+    Callback = function(Value)
+        workspace.Terrain.WaterWaveSize = Value and 0 or 0.1
+        workspace.Terrain.WaterWaveSpeed = Value and 0 or 10
+        workspace.Terrain.WaterReflectance = Value and 0 or 0.5
+    end
+})
+
+-- Reduce Render Distance Toggle
+local RenderDistanceToggle = Tab:CreateToggle({
+    Name = "Reduce Render Distance",
+    Description = "Lowers how far you can see objects",
+    CurrentValue = false,
+    Callback = function(Value)
+        local camera = workspace.CurrentCamera
+        if camera and camera:FindFirstChild("CameraSubject") then
+            camera.CameraSubject.Distance = Value and 50 or 500
+        end
+    end
+})
+
+-- Disable Post-Processing Toggle
+local PostProcessingToggle = Tab:CreateToggle({
+    Name = "Disable Post-Processing",
+    Description = "Turns off bloom, depth of field, etc.",
+    CurrentValue = false,
+    Callback = function(Value)
+        local lighting = game:GetService("Lighting")
+        
+        local function toggleEffect(effectName)
+            local effect = lighting:FindFirstChild(effectName)
+            if effect then
+                effect.Enabled = not Value
+            end
+        end
+
+        toggleEffect("Bloom")
+        toggleEffect("Blur")
+        toggleEffect("ColorCorrection")
+        toggleEffect("DepthOfField")
+        toggleEffect("SunRays")
+    end
+})
+
+Tab:CreateDivider()
+
+local Button = Tab:CreateButton({
+	Name = "Reset FpsCap",
+	Description = "sets FpsCap to 60", -- Creates A Description For Users to know what the button does (looks bad if you use it all the time),
+    	Callback = function()
+         setfpscap(60)
+    	end
+})
+
+local Slider = Tab:CreateSlider({
+	Name = "SetFpsCap",
+	Range = {0, 9000}, -- The Minimum And Maximum Values Respectively
+	Increment = 5, -- Basically The Changing Value/Rounding Off
+	CurrentValue = 60, -- The Starting Value
+    	Callback = function(Value)
+       	 setfpscap(Value)
+    	end
+}, "Slider") -- A flag is the identifier for the configuration file, make sure every element has a different flag if you're using configuration saving to ensure no overlaps
+
 -- Create the Visuals tab
 local Tab = Window:CreateTab({
     Name = "Visuals",
@@ -1312,7 +1494,6 @@ local Tab = Window:CreateTab({
     ImageSource = "Material",
     ShowTitle = true
 })
-
 
 local HighlightToggle = Tab:CreateToggle({
     Name = "Highlight ESP",
@@ -1472,7 +1653,7 @@ local Toggle = Tab:CreateToggle({
                 local controlPanel = Instance.new("Frame")
                 controlPanel.Size = UDim2.new(0, 120, 0, 50)
                 controlPanel.Position = UDim2.new(0, 20, 0, 20)
-                controlPanel.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
+                controlPanel.BackgroundColor3 = Color3.fromRGB(109, 110, 108)
                 controlPanel.BackgroundTransparency = 0.3
                 controlPanel.Active = true
                 controlPanel.Parent = screenGui
@@ -1968,29 +2149,6 @@ local Tab = Window:CreateTab({
 	ShowTitle = true -- This will determine whether the big header text in the tab will show
 })
 
--- In your Toggle callback:
-local Toggle = Tab:CreateToggle({
-    Name = "Show FPSCounter",
-    Description = nil,
-    CurrentValue = false,
-    Callback = function(Value)
-        if Value then
-            fpsGui.Enabled = true
-            -- Only create a new connection if one doesn't exist
-            if not fpsConnection then
-                fpsConnection = RunService.RenderStepped:Connect(updateFPS)
-            end
-        else
-            fpsGui.Enabled = false
-            -- Disconnect the connection if it exists
-            if fpsConnection then
-                fpsConnection:Disconnect()
-                fpsConnection = nil
-            end
-        end
-    end
-}, "Toggle")
-
 local Toggle = Tab:CreateToggle({
     Name = "Auto Clicker",
     Description = "Automatically clicks for you",
@@ -2009,14 +2167,6 @@ local Toggle = Tab:CreateToggle({
         end
     end
 }, "Toggle")
-
-local Button = Tab:CreateButton({
-	Name = "BloxStrap",
-	Description = "bloxStrap from temu", -- Creates A Description For Users to know what the button does (looks bad if you use it all the time),
-    	Callback = function()
-         loadstring(game:HttpGet('https://raw.githubusercontent.com/qwertyui-is-back/Bloxstrap/refs/heads/main/loader.lua'))()
-    	end
-})
 
 local Button = Tab:CreateButton({
 	Name = "Shiftlock",
@@ -2061,7 +2211,7 @@ Tab:CreateDivider()
 
 local Paragraph = Tab:CreateParagraph({
 	Title = "[ UpdateLog ]",
-	Text = "Added More Stuff To The EspTab | Bugs Fixed 4"
+	Text = "Added 1 Tab FpsBoosterTab | Added A Another AntiKick | Bugs Fixed 1"
 })
 
 Luna:Notification({ 
