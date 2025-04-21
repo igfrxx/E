@@ -972,12 +972,12 @@ end)
 
 local Luna = loadstring(game:HttpGet("https://raw.githubusercontent.com/Nebula-Softworks/Luna-Interface-Suite/refs/heads/main/source.lua", true))()
 local Window = Luna:CreateWindow({
-    Name = "SilverWare🍴(v0.5)",
-    Subtitle = "SilverWare On Top!!",
+    Name = "SilverWare🍴",
+    Subtitle = "(v0.6)",
     LogoID = "98445694743887",
     LoadingEnabled = true,
     LoadingTitle = "Starting SilverWare🍴",
-    LoadingSubtitle = "[ Ver, 0.5 ]",
+    LoadingSubtitle = "[ Ver, 0.6 ]",
     ConfigSettings = {
         RootFolder = nil,
         ConfigFolder = "SliverWareConfig"
@@ -1243,7 +1243,15 @@ local Toggle = Tab:CreateToggle({
             _G.AimlockUI = {
                 Inputs = {},
                 ColorPicker = nil,
-                ScreenGui = nil
+                ScreenGui = nil,
+                AimAssist = {
+                    Active = false,
+                    Smoothness = 0.3,
+                    FOVSize = 150,
+                    MaxDistance = 1000,
+                    TargetColor = Color3.fromRGB(255, 0, 0),
+                    TargetTransparency = 0.7
+                }
             }
         end
         
@@ -1300,7 +1308,7 @@ local Toggle = Tab:CreateToggle({
 
                 -- Target indicator
                 local targetIndicator = Instance.new("Frame")
-                targetIndicator.Size = UDim2.new(0, 150, 0, 150)
+                targetIndicator.Size = UDim2.new(0, _G.AimlockUI.AimAssist.FOVSize, 0, _G.AimlockUI.AimAssist.FOVSize)
                 targetIndicator.Position = UDim2.new(0.5, 0, 0.5, 0)
                 targetIndicator.AnchorPoint = Vector2.new(0.5, 0.5)
                 targetIndicator.BackgroundTransparency = 1
@@ -1308,8 +1316,8 @@ local Toggle = Tab:CreateToggle({
 
                 local targetOutline = Instance.new("UIStroke")
                 targetOutline.Thickness = 2
-                targetOutline.Color = Color3.fromRGB(255, 0, 0)
-                targetOutline.Transparency = 0.7
+                targetOutline.Color = _G.AimlockUI.AimAssist.TargetColor
+                targetOutline.Transparency = _G.AimlockUI.AimAssist.TargetTransparency
                 targetOutline.Parent = targetIndicator
 
                 local targetCorner = Instance.new("UICorner")
@@ -1318,12 +1326,12 @@ local Toggle = Tab:CreateToggle({
 
                 -- Toggle functionality
                 local aimAssistActive = false
-                local smoothness = 0.3 -- Adjust this for smoother/stronger aim
-                local maxDistance = 1000 -- Max distance to target
-                local fovSize = 150 -- Field of view size
+                local smoothness = _G.AimlockUI.AimAssist.Smoothness
+                local maxDistance = _G.AimlockUI.AimAssist.MaxDistance
+                local fovSize = _G.AimlockUI.AimAssist.FOVSize
 
-                toggleButton.MouseButton1Click:Connect(function()
-                    aimAssistActive = not aimAssistActive
+                local function updateToggle()
+                    aimAssistActive = _G.AimlockUI.AimAssist.Active
                     outline.Enabled = aimAssistActive
                     toggleButton.Text = aimAssistActive and "AimLock: ON" or "AimLock: OFF"
                     
@@ -1335,6 +1343,11 @@ local Toggle = Tab:CreateToggle({
                         {BackgroundColor3 = aimAssistActive and Color3.fromRGB(40, 40, 40) or Color3.fromRGB(30, 30, 30)}
                     )
                     tween:Play()
+                end
+
+                toggleButton.MouseButton1Click:Connect(function()
+                    _G.AimlockUI.AimAssist.Active = not _G.AimlockUI.AimAssist.Active
+                    updateToggle()
                 end)
 
                 -- Enemy check function
@@ -1427,7 +1440,7 @@ local Toggle = Tab:CreateToggle({
                 -- Aim assist functionality
                 local aimAssistConnection
                 aimAssistConnection = RunService.RenderStepped:Connect(function()
-                    if aimAssistActive then
+                    if _G.AimlockUI.AimAssist.Active then
                         local target = findBestTarget()
                         
                         if target and target.root then
@@ -1439,14 +1452,14 @@ local Toggle = Tab:CreateToggle({
                                 local targetCFrame = CFrame.new(cameraPosition, targetPosition)
                                 
                                 -- Smooth aiming
-                                camera.CFrame = camera.CFrame:Lerp(targetCFrame, smoothness)
+                                camera.CFrame = camera.CFrame:Lerp(targetCFrame, _G.AimlockUI.AimAssist.Smoothness)
                                 
                                 -- Visual feedback
                                 targetOutline.Color = Color3.fromRGB(0, 255, 0)
                             end
                         else
                             -- Reset visual feedback when no target
-                            targetOutline.Color = Color3.fromRGB(255, 0, 0)
+                            targetOutline.Color = _G.AimlockUI.AimAssist.TargetColor
                         end
                     end
                 end)
@@ -1494,27 +1507,14 @@ local Toggle = Tab:CreateToggle({
                 end)
 
                 -- Store connection for cleanup
-                _G.AimlockUI.AimAssist = {
-                    Connection = aimAssistConnection,
-                    TargetIndicator = targetIndicator,
-                    TargetOutline = targetOutline,
-                    Smoothness = smoothness,
-                    FOVSize = fovSize,
-                    MaxDistance = maxDistance,
-                    Toggle = function()
-                        aimAssistActive = not aimAssistActive
-                        outline.Enabled = aimAssistActive
-                        toggleButton.Text = aimAssistActive and "AimLock: ON" or "AimLock: OFF"
-                    end,
-                    Destroy = function()
-                        aimAssistConnection:Disconnect()
-                        screenGui:Destroy()
-                        _G.AimlockUI.AimAssist = nil
-                    end
-                }
+                _G.AimlockUI.AimAssist.Connection = aimAssistConnection
+                _G.AimlockUI.AimAssist.TargetIndicator = targetIndicator
+                _G.AimlockUI.AimAssist.TargetOutline = targetOutline
+                _G.AimlockUI.AimAssist.UpdateToggle = updateToggle
             else
                 -- If GUI exists but is hidden, show it
                 _G.AimlockUI.ScreenGui.Enabled = true
+                _G.AimlockUI.AimAssist.UpdateToggle()
             end
         else
             -- Hide the GUI when toggle is off
@@ -1530,8 +1530,8 @@ Tab:CreateDivider()
 -- Input for changing aimlock circle size
 local Input1 = Tab:CreateInput({
     Name = "Fov Size",
-    Description = nil,
-    PlaceholderText = "150",
+    Description = "Circle size (10-1000)",
+    PlaceholderText = tostring(_G.AimlockUI and _G.AimlockUI.AimAssist.FOVSize or 150),
     CurrentValue = "",
     Numeric = true,
     MaxCharacters = 4,
@@ -1540,8 +1540,10 @@ local Input1 = Tab:CreateInput({
         if _G.AimlockUI and _G.AimlockUI.AimAssist and tonumber(Text) then
             local newSize = tonumber(Text)
             if newSize > 10 and newSize < 1000 then
-                _G.AimlockUI.AimAssist.TargetIndicator.Size = UDim2.new(0, newSize, 0, newSize)
                 _G.AimlockUI.AimAssist.FOVSize = newSize
+                if _G.AimlockUI.AimAssist.TargetIndicator then
+                    _G.AimlockUI.AimAssist.TargetIndicator.Size = UDim2.new(0, newSize, 0, newSize)
+                end
             end
         end
     end
@@ -1550,8 +1552,8 @@ local Input1 = Tab:CreateInput({
 -- Input for changing aimlock circle transparency
 local Input2 = Tab:CreateInput({
     Name = "Fov Transparency",
-    Description = nil,
-    PlaceholderText = "(0-1)",
+    Description = "0-1 (0 = solid, 1 = invisible)",
+    PlaceholderText = tostring(_G.AimlockUI and _G.AimlockUI.AimAssist.TargetTransparency or 0.7),
     CurrentValue = "",
     Numeric = true,
     MaxCharacters = 3,
@@ -1560,7 +1562,10 @@ local Input2 = Tab:CreateInput({
         if _G.AimlockUI and _G.AimlockUI.AimAssist and tonumber(Text) then
             local transparency = tonumber(Text)
             if transparency >= 0 and transparency <= 1 then
-                _G.AimlockUI.AimAssist.TargetOutline.Transparency = transparency
+                _G.AimlockUI.AimAssist.TargetTransparency = transparency
+                if _G.AimlockUI.AimAssist.TargetOutline then
+                    _G.AimlockUI.AimAssist.TargetOutline.Transparency = transparency
+                end
             end
         end
     end
@@ -1569,8 +1574,8 @@ local Input2 = Tab:CreateInput({
 -- Input for changing aimlock strength
 local Input3 = Tab:CreateInput({
     Name = "Aimlock Strength",
-    Description = nil,
-    PlaceholderText = "(0.3)",
+    Description = "0.1-1 (higher = stronger)",
+    PlaceholderText = tostring(_G.AimlockUI and _G.AimlockUI.AimAssist.Smoothness or 0.3),
     CurrentValue = "",
     Numeric = true,
     MaxCharacters = 3,
@@ -1590,11 +1595,14 @@ Tab:CreateDivider()
 -- Color picker for changing aimlock circle color
 local ColorPicker = Tab:CreateColorPicker({
     Name = "FovColor",
-    Color = Color3.fromRGB(255, 0, 0),
+    Color = _G.AimlockUI and _G.AimlockUI.AimAssist.TargetColor or Color3.fromRGB(255, 0, 0),
     Flag = "AimlockColorPicker",
     Callback = function(Value)
         if _G.AimlockUI and _G.AimlockUI.AimAssist then
-            _G.AimlockUI.AimAssist.TargetOutline.Color = Value
+            _G.AimlockUI.AimAssist.TargetColor = Value
+            if _G.AimlockUI.AimAssist.TargetOutline then
+                _G.AimlockUI.AimAssist.TargetOutline.Color = Value
+            end
         end
     end
 }, "ColorPicker")
@@ -1608,6 +1616,11 @@ local Tab = Window:CreateTab({
 
 local Label = Tab:CreateLabel({
 	Text = "[ May Lag On Low-Ends ]",
+	Style = 2 -- Luna Labels Have 3 Styles : A Basic Label, A Green Information Label and A Red Warning Label. Look At The Following Image For More Details
+})
+
+local Label = Tab:CreateLabel({
+	Text = "[ This May Get You Banned ]",
 	Style = 3 -- Luna Labels Have 3 Styles : A Basic Label, A Green Information Label and A Red Warning Label. Look At The Following Image For More Details
 })
 
@@ -1855,7 +1868,7 @@ Tab:CreateDivider()
 
 local Paragraph = Tab:CreateParagraph({
 	Title = "[ UpdateLog ]",
-	Text = "Fixed Teamcheck | Fixed 5 bugs "
+	Text = "Fixed Aimlock's Not Working Inputs | No Bugs Yet"
 })
 
 Luna:Notification({ 
