@@ -379,6 +379,26 @@ local hitboxSize = 10
 local hitboxTransparency = 0.9
 local hitboxColor = Color3.fromRGB(109, 110, 108)
 local hitboxCoroutine = nil
+local Players = game:GetService("Players")
+local localPlayer = Players.LocalPlayer
+
+-- Function to check if a player is an enemy
+local function isEnemy(player)
+    if player == localPlayer then
+        return false
+    end
+    
+    -- Check if the game has teams
+    local teams = game:GetService("Teams"):GetTeams()
+    if #teams > 1 then
+        if localPlayer.Team == nil or player.Team == nil then
+            return true
+        end
+        return localPlayer.Team ~= player.Team
+    else
+        return true
+    end
+end
 
 -- Apply hitbox to a character
 local function applyHitbox(character)
@@ -386,12 +406,17 @@ local function applyHitbox(character)
     
     -- Skip if this is the local player's character
     local player = Players:GetPlayerFromCharacter(character)
-    if not player or player == Players.LocalPlayer or not isEnemy(player) then
+    if not player or player == localPlayer or not isEnemy(player) then
+        return
+    end
+    
+    -- Only apply hitbox if character is alive
+    local humanoid = character:FindFirstChildOfClass("Humanoid")
+    if humanoid and humanoid.Health <= 0 then
         return
     end
     
     -- Handle R15 characters differently
-    local humanoid = character:FindFirstChildOfClass("Humanoid")
     local isR15 = humanoid and humanoid.RigType == Enum.HumanoidRigType.R15
     
     -- HumanoidRootPart modifications
@@ -413,7 +438,7 @@ local function applyHitbox(character)
         rootPart.Transparency = hitboxTransparency
         rootPart.Color = hitboxColor
         rootPart.Material = Enum.Material.ForceField
-        rootPart.CanCollide = false  -- Always false regardless of alive state
+        rootPart.CanCollide = false
         
         -- For R15, we need to adjust the other parts too
         if isR15 then
@@ -434,7 +459,7 @@ local function applyHitbox(character)
                 lowerTorso.Transparency = hitboxTransparency
                 lowerTorso.Color = hitboxColor
                 lowerTorso.Material = Enum.Material.ForceField
-                lowerTorso.CanCollide = false  -- Always false
+                lowerTorso.CanCollide = false
             end
         end
     end
@@ -458,7 +483,7 @@ local function applyHitbox(character)
         head.Transparency = hitboxTransparency
         head.Color = hitboxColor
         head.Material = Enum.Material.ForceField
-        head.CanCollide = false  -- Always false
+        head.CanCollide = false
         head.Massless = true
     end
     
@@ -484,7 +509,7 @@ local function applyHitbox(character)
                 part.Transparency = hitboxTransparency
                 part.Color = hitboxColor
                 part.Material = Enum.Material.ForceField
-                part.CanCollide = false  -- Always false
+                part.CanCollide = false
             end
         end
     end
@@ -496,7 +521,7 @@ local function resetHitbox(character)
     
     -- Skip if this is the local player's character
     local player = Players:GetPlayerFromCharacter(character)
-    if not player or player == Players.LocalPlayer then
+    if not player or player == localPlayer then
         return
     end
     
@@ -505,9 +530,9 @@ local function resetHitbox(character)
     if rootPart and rootPart:FindFirstChild("OriginalSize") then
         rootPart.Size = rootPart.OriginalSize.Value
         rootPart.Transparency = 1
-        rootPart.Color = Color3.fromRGB(170, 170, 170) -- Default grey color
+        rootPart.Color = Color3.fromRGB(170, 170, 170)
         rootPart.Material = Enum.Material.Plastic
-        rootPart.CanCollide = rootPart:FindFirstChild("OriginalCanCollide") and rootPart.OriginalCanCollide.Value or true
+        rootPart.CanCollide = rootPart.OriginalCanCollide.Value
     end
     
     -- Reset Head
@@ -515,9 +540,9 @@ local function resetHitbox(character)
     if head and head:FindFirstChild("OriginalSize") then
         head.Size = head.OriginalSize.Value
         head.Transparency = 0
-        head.Color = Color3.fromRGB(170, 170, 170) -- Default grey color
+        head.Color = Color3.fromRGB(170, 170, 170)
         head.Material = Enum.Material.Plastic
-        head.CanCollide = head:FindFirstChild("OriginalCanCollide") and head.OriginalCanCollide.Value or true
+        head.CanCollide = head.OriginalCanCollide.Value
         head.Massless = false
     end
     
@@ -532,9 +557,9 @@ local function resetHitbox(character)
             if part and part:FindFirstChild("OriginalSize") then
                 part.Size = part.OriginalSize.Value
                 part.Transparency = 0
-                part.Color = Color3.fromRGB(170, 170, 170) -- Default grey color
+                part.Color = Color3.fromRGB(170, 170, 170)
                 part.Material = Enum.Material.Plastic
-                part.CanCollide = part:FindFirstChild("OriginalCanCollide") and part.OriginalCanCollide.Value or true
+                part.CanCollide = part.OriginalCanCollide.Value
             end
         end
     end
@@ -558,72 +583,107 @@ local function resetHitboxesOnAllPlayers()
     end
 end
 
--- Track player characters for respawn/death events
+-- Improved player tracking with health monitoring
 local function trackPlayer(player)
-    if not player then return end
+    if not player or player == localPlayer then return end
     
-    -- Handle character added (respawn)
-    player.CharacterAdded:Connect(function(character)
-        task.wait(1) -- Wait for character to fully load
+    local function handleCharacter(character)
+        if not character then return end
         
+        -- Apply hitbox if enabled and character is alive
         if hitboxEnabled and isEnemy(player) then
-            applyHitbox(character)
+            local humanoid = character:FindFirstChildOfClass("Humanoid")
+            if humanoid and humanoid.Health > 0 then
+                applyHitbox(character)
+            end
         end
-    end)
+        
+        -- Set up health monitoring
+        local humanoid = character:WaitForChild("Humanoid")
+        
+        local function updateHitboxState()
+            if hitboxEnabled and isEnemy(player) then
+                if humanoid.Health > 0 then
+                    applyHitbox(character)
+                else
+                    resetHitbox(character)
+                end
+            end
+        end
+        
+        -- Initial update
+        updateHitboxState()
+        
+        -- Connect health changed event
+        humanoid.HealthChanged:Connect(updateHitboxState)
+    end
     
     -- Handle existing character
-    if player.Character and hitboxEnabled and isEnemy(player) then
-        applyHitbox(player.Character)
+    if player.Character then
+        handleCharacter(player.Character)
     end
+    
+    -- Handle future characters
+    player.CharacterAdded:Connect(handleCharacter)
 end
 
 -- Initialize tracking for all players
 for _, player in ipairs(Players:GetPlayers()) do
-    trackPlayer(player)
+    if player ~= localPlayer then
+        trackPlayer(player)
+    end
 end
 
--- Player added/removed events
-Players.PlayerAdded:Connect(trackPlayer)
+-- Handle new players
+Players.PlayerAdded:Connect(function(player)
+    if player ~= localPlayer then
+        trackPlayer(player)
+    end
+end)
 
 -- Toggle system for hitboxes
 local function toggleHitboxes(enabled)
     hitboxEnabled = enabled
     
     if enabled then
-        applyHitboxesToAllPlayers()
+        -- Apply to all existing enemies
+        for _, player in ipairs(Players:GetPlayers()) do
+            if player ~= localPlayer and isEnemy(player) and player.Character then
+                applyHitbox(player.Character)
+            end
+        end
         
+        -- Start maintenance coroutine
         if not hitboxCoroutine then
             hitboxCoroutine = coroutine.create(function()
-                while hitboxEnabled and task.wait(0.5) do
-                    applyHitboxesToAllPlayers()
+                while hitboxEnabled and task.wait(1) do
+                    for _, player in ipairs(Players:GetPlayers()) do
+                        if player ~= localPlayer and isEnemy(player) and player.Character then
+                            applyHitbox(player.Character)
+                        end
+                    end
                 end
+                hitboxCoroutine = nil
             end)
             coroutine.resume(hitboxCoroutine)
         end
     else
+        -- Reset all hitboxes
+        for _, player in ipairs(Players:GetPlayers()) do
+            if player.Character then
+                resetHitbox(player.Character)
+            end
+        end
+        
+        -- Stop maintenance coroutine
         if hitboxCoroutine then
             coroutine.close(hitboxCoroutine)
             hitboxCoroutine = nil
         end
-        resetHitboxesOnAllPlayers()
     end
 end
 
--- Call functions
-function EspOnlyEnemiesOn()
-    highlightEspEnabled = true
-    nameEspEnabled = false
-    boxEspEnabled = false
-    toggleEsp()
-end
-
-function EspOnlyEnemiesOff()
-    highlightEspEnabled = false
-    nameEspEnabled = false
-    boxEspEnabled = false
-    clearEsp()
-end
-
+-- Public functions
 function HitboxOnlyEnemiesOn()
     toggleHitboxes(true)
 end
