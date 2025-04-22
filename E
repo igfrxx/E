@@ -373,7 +373,7 @@ local espUpdateLoop = RunService.RenderStepped:Connect(function()
     end
 end)
 
-
+-- Hitbox Variable
 -- Services
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
@@ -1980,7 +1980,7 @@ local Toggle = Tab:CreateToggle({
 local Input = Tab:CreateInput({
     Name = "Hitbox Size (textbox)",
     Description = nil,
-    PlaceholderText = "Enter hitbox size",
+    PlaceholderText = "10",
     CurrentValue = tostring(hitboxSize),
     Numeric = true,
     MaxCharacters = 3,
@@ -2012,7 +2012,7 @@ local Slider = Tab:CreateSlider({
 local Input = Tab:CreateInput({
     Name = "Hitbox Transparency",
     Description = nil,
-    PlaceholderText = "Enter transparency (0-1)",
+    PlaceholderText = "0.9",
     CurrentValue = tostring(hitboxTransparency),
     Numeric = true,
     MaxCharacters = 3,
