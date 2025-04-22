@@ -1969,13 +1969,17 @@ local Label = Tab:CreateLabel({
 
 -- UI Integration
 local Toggle = Tab:CreateToggle({
-    Name = "Start Expanding Hitbox",
+    Name = "Start HBE",
     Description = nil,
     CurrentValue = false,
     Callback = function(Value)
         toggleHitboxes(Value)
     end
 }, "Toggle")
+
+Tab:CreateDivider()
+
+Tab:CreateDivider()
 
 local Input = Tab:CreateInput({
     Name = "Hitbox Size (textbox)",
@@ -2027,6 +2031,8 @@ local Input = Tab:CreateInput({
         end
     end
 }, "Input")
+
+Tab:CreateDivider()
 
 local Dropdown = Tab:CreateDropdown({
     Name = "Select Hitbox Type",
