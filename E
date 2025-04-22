@@ -373,22 +373,29 @@ local espUpdateLoop = RunService.RenderStepped:Connect(function()
     end
 end)
 
--- Hitbox Configuration variables
-local hitboxEnabled = false
+
+-- Services
+local Players = game:GetService("Players")
+local RunService = game:GetService("RunService")
+
+-- Player variables
+local localPlayer = Players.LocalPlayer
+while not localPlayer do
+    task.wait()
+    localPlayer = Players.LocalPlayer
+end
+
+-- Configuration variables
 local hitboxSize = 10
 local hitboxTransparency = 0.9
-local hitboxColor = Color3.fromRGB(109, 110, 108)
-local hitboxCoroutine = nil
-local Players = game:GetService("Players")
-local localPlayer = Players.LocalPlayer
+local hitboxEnabled = false
+local hitboxType = "Both" -- "Both", "Only Hrp", "Only Head"
+local hitboxColor = Color3.fromRGB(255, 0, 0)
 
--- Function to check if a player is an enemy
+-- Team detection function
 local function isEnemy(player)
-    if player == localPlayer then
-        return false
-    end
+    if player == localPlayer then return false end
     
-    -- Check if the game has teams
     local teams = game:GetService("Teams"):GetTeams()
     if #teams > 1 then
         if localPlayer.Team == nil or player.Team == nil then
@@ -402,151 +409,87 @@ end
 
 -- Apply hitbox to a character
 local function applyHitbox(character)
-    if not character then return end
+    if not character or not hitboxEnabled then return end
     
-    -- Skip if this is the local player's character
     local player = Players:GetPlayerFromCharacter(character)
-    if not player or player == localPlayer or not isEnemy(player) then
-        return
-    end
+    if player and player == localPlayer then return end
     
-    -- Only apply hitbox if character is alive
     local humanoid = character:FindFirstChildOfClass("Humanoid")
-    if humanoid and humanoid.Health <= 0 then
-        return
-    end
+    if humanoid and humanoid.Health <= 0 then return end
     
-    -- Handle R15 characters differently
     local isR15 = humanoid and humanoid.RigType == Enum.HumanoidRigType.R15
     
-    -- HumanoidRootPart modifications
-    local rootPart = character:FindFirstChild("HumanoidRootPart") or character:FindFirstChild("UpperTorso")
-    if rootPart then
-        if not rootPart:FindFirstChild("OriginalSize") then
+    -- Store original sizes if not already stored
+    local function storeOriginalSize(part)
+        if not part:FindFirstChild("OriginalSize") then
             local originalSize = Instance.new("Vector3Value")
             originalSize.Name = "OriginalSize"
-            originalSize.Value = rootPart.Size
-            originalSize.Parent = rootPart
-            
-            local originalCollide = Instance.new("BoolValue")
-            originalCollide.Name = "OriginalCanCollide"
-            originalCollide.Value = rootPart.CanCollide
-            originalCollide.Parent = rootPart
+            originalSize.Value = part.Size
+            originalSize.Parent = part
         end
+    end
+
+    -- Apply hitbox to a specific part
+    local function applyToPart(part)
+        if not part then return end
+        storeOriginalSize(part)
+        part.Size = Vector3.new(hitboxSize, hitboxSize, hitboxSize)
+        part.Transparency = hitboxTransparency
+        part.BrickColor = BrickColor.new(hitboxColor)
+        part.Material = Enum.Material.ForceField
+        part.CanCollide = false
+    end
+
+    -- Apply based on selected hitbox type
+    if hitboxType == "Both" or hitboxType == "Only Hrp" then
+        local rootPart = character:FindFirstChild("HumanoidRootPart") or character:FindFirstChild("UpperTorso")
+        applyToPart(rootPart)
         
-        rootPart.Size = Vector3.new(hitboxSize, hitboxSize, hitboxSize)
-        rootPart.Transparency = hitboxTransparency
-        rootPart.Color = hitboxColor
-        rootPart.Material = Enum.Material.ForceField
-        rootPart.CanCollide = false
-        
-        -- For R15, we need to adjust the other parts too
-        if isR15 then
+        if isR15 and hitboxType == "Both" then
             local lowerTorso = character:FindFirstChild("LowerTorso")
-            if lowerTorso then
-                if not lowerTorso:FindFirstChild("OriginalSize") then
-                    local originalSize = Instance.new("Vector3Value")
-                    originalSize.Name = "OriginalSize"
-                    originalSize.Value = lowerTorso.Size
-                    originalSize.Parent = lowerTorso
-                    
-                    local originalCollide = Instance.new("BoolValue")
-                    originalCollide.Name = "OriginalCanCollide"
-                    originalCollide.Value = lowerTorso.CanCollide
-                    originalCollide.Parent = lowerTorso
-                end
-                lowerTorso.Size = Vector3.new(hitboxSize, hitboxSize, hitboxSize)
-                lowerTorso.Transparency = hitboxTransparency
-                lowerTorso.Color = hitboxColor
-                lowerTorso.Material = Enum.Material.ForceField
-                lowerTorso.CanCollide = false
-            end
+            applyToPart(lowerTorso)
         end
     end
     
-    -- Head modifications
-    local head = character:FindFirstChild("Head")
-    if head then
-        if not head:FindFirstChild("OriginalSize") then
-            local originalSize = Instance.new("Vector3Value")
-            originalSize.Name = "OriginalSize"
-            originalSize.Value = head.Size
-            originalSize.Parent = head
-            
-            local originalCollide = Instance.new("BoolValue")
-            originalCollide.Name = "OriginalCanCollide"
-            originalCollide.Value = head.CanCollide
-            originalCollide.Parent = head
-        end
-        
-        head.Size = Vector3.new(hitboxSize, hitboxSize, hitboxSize)
-        head.Transparency = hitboxTransparency
-        head.Color = hitboxColor
-        head.Material = Enum.Material.ForceField
-        head.CanCollide = false
-        head.Massless = true
+    if hitboxType == "Both" or hitboxType == "Only Head" then
+        local head = character:FindFirstChild("Head")
+        applyToPart(head)
     end
     
-    -- For R15, adjust other important parts
-    if isR15 then
+    -- For R15, adjust other parts if "Both" is selected
+    if isR15 and hitboxType == "Both" then
         local partsToAdjust = {"UpperTorso", "LowerTorso", "LeftUpperArm", "RightUpperArm", "LeftUpperLeg", "RightUpperLeg"}
         for _, partName in ipairs(partsToAdjust) do
             local part = character:FindFirstChild(partName)
-            if part then
-                if not part:FindFirstChild("OriginalSize") then
-                    local originalSize = Instance.new("Vector3Value")
-                    originalSize.Name = "OriginalSize"
-                    originalSize.Value = part.Size
-                    originalSize.Parent = part
-                    
-                    local originalCollide = Instance.new("BoolValue")
-                    originalCollide.Name = "OriginalCanCollide"
-                    originalCollide.Value = part.CanCollide
-                    originalCollide.Parent = part
-                end
-                
-                part.Size = Vector3.new(hitboxSize, hitboxSize, hitboxSize)
-                part.Transparency = hitboxTransparency
-                part.Color = hitboxColor
-                part.Material = Enum.Material.ForceField
-                part.CanCollide = false
-            end
+            applyToPart(part)
         end
     end
 end
 
--- Reset hitbox to original state
+-- Reset hitbox to original size
 local function resetHitbox(character)
     if not character then return end
     
-    -- Skip if this is the local player's character
     local player = Players:GetPlayerFromCharacter(character)
-    if not player or player == localPlayer then
-        return
-    end
+    if player and player == localPlayer then return end
     
-    -- Reset HumanoidRootPart
+    local function resetPart(part)
+        if part and part:FindFirstChild("OriginalSize") then
+            part.Size = part.OriginalSize.Value
+            part.Transparency = 1
+            part.BrickColor = BrickColor.new("Medium stone grey")
+            part.Material = Enum.Material.Plastic
+            part.CanCollide = true
+        end
+    end
+
+    -- Reset all parts regardless of current hitbox type
     local rootPart = character:FindFirstChild("HumanoidRootPart") or character:FindFirstChild("UpperTorso")
-    if rootPart and rootPart:FindFirstChild("OriginalSize") then
-        rootPart.Size = rootPart.OriginalSize.Value
-        rootPart.Transparency = 1
-        rootPart.Color = Color3.fromRGB(170, 170, 170)
-        rootPart.Material = Enum.Material.Plastic
-        rootPart.CanCollide = rootPart.OriginalCanCollide.Value
-    end
+    resetPart(rootPart)
     
-    -- Reset Head
     local head = character:FindFirstChild("Head")
-    if head and head:FindFirstChild("OriginalSize") then
-        head.Size = head.OriginalSize.Value
-        head.Transparency = 0
-        head.Color = Color3.fromRGB(170, 170, 170)
-        head.Material = Enum.Material.Plastic
-        head.CanCollide = head.OriginalCanCollide.Value
-        head.Massless = false
-    end
+    resetPart(head)
     
-    -- Reset R15 parts
     local humanoid = character:FindFirstChildOfClass("Humanoid")
     local isR15 = humanoid and humanoid.RigType == Enum.HumanoidRigType.R15
     
@@ -554,18 +497,12 @@ local function resetHitbox(character)
         local partsToReset = {"LowerTorso", "UpperTorso", "LeftUpperArm", "RightUpperArm", "LeftUpperLeg", "RightUpperLeg"}
         for _, partName in ipairs(partsToReset) do
             local part = character:FindFirstChild(partName)
-            if part and part:FindFirstChild("OriginalSize") then
-                part.Size = part.OriginalSize.Value
-                part.Transparency = 0
-                part.Color = Color3.fromRGB(170, 170, 170)
-                part.Material = Enum.Material.Plastic
-                part.CanCollide = part.OriginalCanCollide.Value
-            end
+            resetPart(part)
         end
     end
 end
 
--- Apply hitboxes to all enemy players
+-- Apply hitboxes to all players
 local function applyHitboxesToAllPlayers()
     for _, player in ipairs(Players:GetPlayers()) do
         if isEnemy(player) and player.Character then
@@ -583,114 +520,77 @@ local function resetHitboxesOnAllPlayers()
     end
 end
 
--- Improved player tracking with health monitoring
-local function trackPlayer(player)
-    if not player or player == localPlayer then return end
-    
-    local function handleCharacter(character)
-        if not character then return end
-        
-        -- Apply hitbox if enabled and character is alive
-        if hitboxEnabled and isEnemy(player) then
-            local humanoid = character:FindFirstChildOfClass("Humanoid")
-            if humanoid and humanoid.Health > 0 then
-                applyHitbox(character)
-            end
-        end
-        
-        -- Set up health monitoring
-        local humanoid = character:WaitForChild("Humanoid")
-        
-        local function updateHitboxState()
-            if hitboxEnabled and isEnemy(player) then
-                if humanoid.Health > 0 then
-                    applyHitbox(character)
-                else
-                    resetHitbox(character)
-                end
-            end
-        end
-        
-        -- Initial update
-        updateHitboxState()
-        
-        -- Connect health changed event
-        humanoid.HealthChanged:Connect(updateHitboxState)
-    end
-    
-    -- Handle existing character
-    if player.Character then
-        handleCharacter(player.Character)
-    end
-    
-    -- Handle future characters
-    player.CharacterAdded:Connect(handleCharacter)
-end
-
--- Initialize tracking for all players
-for _, player in ipairs(Players:GetPlayers()) do
-    if player ~= localPlayer then
-        trackPlayer(player)
-    end
-end
-
--- Handle new players
-Players.PlayerAdded:Connect(function(player)
-    if player ~= localPlayer then
-        trackPlayer(player)
-    end
-end)
-
--- Toggle system for hitboxes
+-- Hitbox toggle system
+local hitboxCoroutine
 local function toggleHitboxes(enabled)
     hitboxEnabled = enabled
     
     if enabled then
-        -- Apply to all existing enemies
-        for _, player in ipairs(Players:GetPlayers()) do
-            if player ~= localPlayer and isEnemy(player) and player.Character then
-                applyHitbox(player.Character)
-            end
-        end
+        applyHitboxesToAllPlayers()
         
-        -- Start maintenance coroutine
         if not hitboxCoroutine then
             hitboxCoroutine = coroutine.create(function()
-                while hitboxEnabled and task.wait(1) do
-                    for _, player in ipairs(Players:GetPlayers()) do
-                        if player ~= localPlayer and isEnemy(player) and player.Character then
-                            applyHitbox(player.Character)
-                        end
-                    end
+                while hitboxEnabled and task.wait(0.5) do
+                    applyHitboxesToAllPlayers()
                 end
-                hitboxCoroutine = nil
             end)
             coroutine.resume(hitboxCoroutine)
         end
     else
-        -- Reset all hitboxes
-        for _, player in ipairs(Players:GetPlayers()) do
-            if player.Character then
-                resetHitbox(player.Character)
-            end
-        end
-        
-        -- Stop maintenance coroutine
         if hitboxCoroutine then
             coroutine.close(hitboxCoroutine)
             hitboxCoroutine = nil
         end
+        resetHitboxesOnAllPlayers()
     end
 end
 
--- Public functions
-function HitboxOnlyEnemiesOn()
-    toggleHitboxes(true)
+-- Player tracking system
+local function trackPlayer(player)
+    if not player then return end
+    
+    if isEnemy(player) then
+        player.CharacterAdded:Connect(function(character)
+            task.wait(1) -- Wait for character to fully load
+            
+            local humanoid = character:WaitForChild("Humanoid")
+            
+            local function updateHitboxState()
+                if hitboxEnabled then
+                    if humanoid.Health > 0 then
+                        applyHitbox(character)
+                    else
+                        resetHitbox(character)
+                    end
+                end
+            end
+            
+            updateHitboxState()
+            humanoid.HealthChanged:Connect(updateHitboxState)
+        end)
+        
+        if player.Character then
+            local humanoid = player.Character:FindFirstChildOfClass("Humanoid")
+            if humanoid then
+                if hitboxEnabled then
+                    if humanoid.Health > 0 then
+                        applyHitbox(player.Character)
+                    else
+                        resetHitbox(player.Character)
+                    end
+                end
+            end
+        end
+    end
 end
 
-function HitboxOnlyEnemiesOff()
-    toggleHitboxes(false)
+-- Initialize tracking for all players
+for _, player in ipairs(Players:GetPlayers()) do
+    trackPlayer(player)
 end
+
+-- Player added/removed events
+Players.PlayerAdded:Connect(trackPlayer)
 
 -- FPS Counter
 local fpsGui = Instance.new("ScreenGui")
@@ -755,31 +655,37 @@ local function toggleFpsCounter(enable)
     end
 end
 
--- Notification
 
+-- Notify
+local DEFAULT_DURATION = 5
+local DEFAULT_COLOR = Color3.fromRGB(0, 170, 255)
+local NOTIFICATION_WIDTH = 0.35
+local NOTIFICATION_HEIGHT = 70
+local ANIMATION_DURATION = 0.5
+
+-- Setup
 local player = Players.LocalPlayer
 local gui = player:WaitForChild("PlayerGui")
 
--- Create ScreenGui
-local screenGui = Instance.new("ScreenGui")
+-- Create ScreenGui if it doesn't exist
+local screenGui = gui:FindFirstChild("NotificationGui") or Instance.new("ScreenGui")
 screenGui.Name = "NotificationGui"
 screenGui.Parent = gui
 screenGui.ResetOnSpawn = false
 
--- Create a sound folder in SoundService for our notification sounds
-local notificationSounds = Instance.new("Folder")
+-- Sound system
+local notificationSounds = SoundService:FindFirstChild("NotificationSounds") or Instance.new("Folder")
 notificationSounds.Name = "NotificationSounds"
 notificationSounds.Parent = SoundService
 
--- Sound IDs and configurations
 local soundConfigs = {
-    NotificationAppear = {id = 3023237993, volume = 0.1},
-    NotificationDisappear = {id = 18595195017, volume = 0.1},
+    NotificationAppear = {id = 3023237993, volume = 1},
+    NotificationDisappear = {id = 18595195017, volume = 1},
     NotificationHover = {id = 7218169592, volume = 0.1},
-    NotificationClick = {id = 177266782, volume = 0.1},
-    NotificationPulse = {id = 10066936758, volume = 0.1}
+    NotificationClick = {id = 177266782, volume = 1},
+    NotificationPulse = {id = 10066936758, volume = 1}
 }
--- Function to play sounds
+
 local function playSound(soundName)
     local config = soundConfigs[soundName]
     if not config then return end
@@ -795,10 +701,22 @@ local function playSound(soundName)
     end)
 end
 
--- Notification function
+-- Notification queue system
+local notificationQueue = {}
+local isShowingNotification = false
+
+local function showNextNotification()
+    if #notificationQueue == 0 or isShowingNotification then return end
+    isShowingNotification = true
+    
+    local notificationData = table.remove(notificationQueue, 1)
+    showNotification(notificationData.title, notificationData.message, notificationData.duration, notificationData.color)
+end
+
+-- Main notification function
 function showNotification(title, message, duration, color)
-    duration = duration or 5
-    color = color or Color3.fromRGB(0, 170, 255)
+    duration = duration or DEFAULT_DURATION
+    color = color or DEFAULT_COLOR
 
     -- Play appear sound
     playSound("NotificationAppear")
@@ -806,21 +724,21 @@ function showNotification(title, message, duration, color)
     -- Main frame
     local frame = Instance.new("Frame")
     frame.Name = "Notification"
-    frame.Size = UDim2.new(0.35, 0, 0, 70)
+    frame.Size = UDim2.new(NOTIFICATION_WIDTH, 0, 0, NOTIFICATION_HEIGHT)
     frame.Position = UDim2.new(1, 10, 0.85, 0)
     frame.AnchorPoint = Vector2.new(1, 0)
     frame.BackgroundColor3 = Color3.fromRGB(25, 25, 25)
-    frame.BackgroundTransparency = 0.8  -- Start more transparent for dramatic fade-in
+    frame.BackgroundTransparency = 0.8
     frame.BorderSizePixel = 0
     frame.Parent = screenGui
     frame.ZIndex = 10
-    frame.ClipsDescendants = true  -- For the ripple effect
+    frame.ClipsDescendants = true
 
-    -- Shadow with initial scale for pop effect
+    -- Shadow effect
     local shadow = Instance.new("ImageLabel")
     shadow.Name = "Shadow"
     shadow.Image = "rbxassetid://1316045217"
-    shadow.ImageTransparency = 0.9  -- Start more transparent
+    shadow.ImageTransparency = 0.9
     shadow.ScaleType = Enum.ScaleType.Slice
     shadow.SliceCenter = Rect.new(10, 10, 118, 118)
     shadow.Size = UDim2.new(1, 20, 1, 20)
@@ -834,67 +752,99 @@ function showNotification(title, message, duration, color)
     corner.CornerRadius = UDim.new(0, 6)
     corner.Parent = frame
 
-    -- Accent line
+    -- Accent line with gradient
     local accent = Instance.new("Frame")
     accent.Name = "Accent"
-    accent.Size = UDim2.new(0, 0, 0, 2)  -- Start with 0 width for animation
+    accent.Size = UDim2.new(0, 0, 0, 2)
     accent.Position = UDim2.new(0, 0, 0, 0)
     accent.BackgroundColor3 = color
     accent.BorderSizePixel = 0
     accent.ZIndex = frame.ZIndex + 1
     accent.Parent = frame
 
-    -- Title with initial scale for bounce effect
+    -- Gradient effect for accent
+    local gradient = Instance.new("UIGradient")
+    gradient.Color = ColorSequence.new{
+        ColorSequenceKeypoint.new(0, color),
+        ColorSequenceKeypoint.new(1, Color3.new(color.R * 0.7, color.G * 0.7, color.B * 0.7))
+    }
+    gradient.Rotation = 90
+    gradient.Parent = accent
+
+    -- Title label
     local titleLabel = Instance.new("TextLabel")
     titleLabel.Name = "Title"
     titleLabel.Text = title
     titleLabel.TextColor3 = Color3.fromRGB(0, 255, 180)
-    titleLabel.TextTransparency = 1  -- Start invisible for fade-in
-    titleLabel.TextSize = 15
-    titleLabel.Font = Enum.Font.Code
-    titleLabel.Size = UDim2.new(1, -40, 0, 18)
+    titleLabel.TextTransparency = 1
+    titleLabel.TextSize = 16
+    titleLabel.Font = Enum.Font.GothamBold
+    titleLabel.Size = UDim2.new(1, -40, 0, 20)
     titleLabel.Position = UDim2.new(0, 10, 0, 8)
     titleLabel.TextXAlignment = Enum.TextXAlignment.Left
     titleLabel.BackgroundTransparency = 1
     titleLabel.ZIndex = frame.ZIndex + 1
     titleLabel.Parent = frame
 
-    -- Message
+    -- Message label with text wrapping
     local messageLabel = Instance.new("TextLabel")
     messageLabel.Name = "Message"
     messageLabel.Text = message
     messageLabel.TextColor3 = Color3.fromRGB(200, 200, 200)
-    messageLabel.TextTransparency = 1  -- Start invisible for fade-in
+    messageLabel.TextTransparency = 1
     messageLabel.TextSize = 14
-    messageLabel.Font = Enum.Font.Code
+    messageLabel.Font = Enum.Font.Gotham
     messageLabel.Size = UDim2.new(1, -20, 0, 35)
-    messageLabel.Position = UDim2.new(0, 10, 0, 28)
+    messageLabel.Position = UDim2.new(0, 10, 0, 30)
     messageLabel.TextXAlignment = Enum.TextXAlignment.Left
     messageLabel.TextYAlignment = Enum.TextYAlignment.Top
     messageLabel.BackgroundTransparency = 1
+    messageLabel.TextWrapped = true
     messageLabel.ZIndex = frame.ZIndex + 1
     messageLabel.Parent = frame
 
-    -- Close button with hover effects
-    local closeButton = Instance.new("TextButton")
+    -- Close button
+    local closeButton = Instance.new("ImageButton")
     closeButton.Name = "CloseButton"
-    closeButton.Text = "×"
-    closeButton.TextColor3 = Color3.fromRGB(180, 180, 180)
-    closeButton.TextTransparency = 1  -- Start invisible for fade-in
-    closeButton.TextSize = 20
-    closeButton.Font = Enum.Font.Code
+    closeButton.Image = "rbxassetid://3926305904"
+    closeButton.ImageRectOffset = Vector2.new(284, 4)
+    closeButton.ImageRectSize = Vector2.new(24, 24)
+    closeButton.ImageColor3 = Color3.fromRGB(180, 180, 180)
+    closeButton.ImageTransparency = 1
     closeButton.Size = UDim2.new(0, 20, 0, 20)
     closeButton.Position = UDim2.new(1, -25, 0, 6)
     closeButton.BackgroundTransparency = 1
     closeButton.ZIndex = frame.ZIndex + 1
     closeButton.Parent = frame
 
-    -- Add a subtle glow effect
+    -- Progress bar for time remaining
+    local progressBar = Instance.new("Frame")
+    progressBar.Name = "ProgressBar"
+    progressBar.Size = UDim2.new(1, 0, 0, 2)
+    progressBar.Position = UDim2.new(0, 0, 1, -2)
+    progressBar.BackgroundColor3 = Color3.fromRGB(80, 80, 80)
+    progressBar.BorderSizePixel = 0
+    progressBar.ZIndex = frame.ZIndex + 1
+    progressBar.Parent = frame
+    
+    local progressFill = Instance.new("Frame")
+    progressFill.Name = "ProgressFill"
+    progressFill.Size = UDim2.new(1, 0, 1, 0)
+    progressFill.BackgroundColor3 = color
+    progressFill.BorderSizePixel = 0
+    progressFill.ZIndex = frame.ZIndex + 2
+    progressFill.Parent = progressBar
+    
+    local progressCorner = Instance.new("UICorner")
+    progressCorner.CornerRadius = UDim.new(1, 0)
+    progressCorner.Parent = progressFill
+
+    -- Glow effect
     local glow = Instance.new("ImageLabel")
     glow.Name = "Glow"
     glow.Image = "rbxassetid://5028857084"
     glow.ImageColor3 = color
-    glow.ImageTransparency = 1  -- Start invisible
+    glow.ImageTransparency = 1
     glow.ScaleType = Enum.ScaleType.Slice
     glow.SliceCenter = Rect.new(24, 24, 24, 24)
     glow.Size = UDim2.new(1, 40, 1, 40)
@@ -904,7 +854,7 @@ function showNotification(title, message, duration, color)
     glow.ZIndex = frame.ZIndex - 1
     glow.Parent = frame
 
-    -- Add a ripple effect for when the notification appears
+    -- Ripple effect
     local ripple = Instance.new("Frame")
     ripple.Name = "Ripple"
     ripple.Size = UDim2.new(0, 0, 0, 0)
@@ -930,102 +880,119 @@ function showNotification(title, message, duration, color)
         pulseIn:Play()
     end
 
-    -- Slide in animation with bounce
-    local slideIn = TweenService:Create(frame, TweenInfo.new(0.5, Enum.EasingStyle.Back, Enum.EasingDirection.Out), {
-        Position = UDim2.new(1, -10, 0.85, 0),
-        BackgroundTransparency = 0.1
-    })
-    
-    -- Pop effect for shadow
-    local shadowPop = TweenService:Create(shadow, TweenInfo.new(0.3, Enum.EasingStyle.Back, Enum.EasingDirection.Out), {
-        ImageTransparency = 0.6,
-        Size = UDim2.new(1, 30, 1, 30),
-        Position = UDim2.new(0, -15, 0, -15)
-    })
-    
-    -- Glow effect
-    local glowFadeIn = TweenService:Create(glow, TweenInfo.new(0.5, Enum.EasingStyle.Quad), {
-        ImageTransparency = 0.8
-    })
-    
-    -- Ripple effect animation
-    local rippleExpand = TweenService:Create(ripple, TweenInfo.new(0.6, Enum.EasingStyle.Quad), {
-        Size = UDim2.new(2, 0, 2, 0),
-        BackgroundTransparency = 1
-    })
-    
-    -- Fade in content with slight delay between elements
-    local fadeIn = TweenService:Create(titleLabel, TweenInfo.new(0.4, Enum.EasingStyle.Quad), {
-        TextTransparency = 0
-    })
-    local fadeIn2 = TweenService:Create(messageLabel, TweenInfo.new(0.4, Enum.EasingStyle.Quad), {
-        TextTransparency = 0
-    })
-    local fadeIn3 = TweenService:Create(closeButton, TweenInfo.new(0.4, Enum.EasingStyle.Quad), {
-        TextTransparency = 0
-    })
-    
-    -- Accent line grow animation with overshoot
-    local accentGrow = TweenService:Create(accent, TweenInfo.new(0.4, Enum.EasingStyle.Back, Enum.EasingDirection.Out), {
-        Size = UDim2.new(1, 0, 0, 2)
-    })
-    
-    -- Frame fade in with slight scale effect
-    local frameFadeIn = TweenService:Create(frame, TweenInfo.new(0.3, Enum.EasingStyle.Quad), {
-        BackgroundTransparency = 0.1
-    })
-
-    -- Play animations in sequence with staggered timing
-    slideIn:Play()
-    shadowPop:Play()
-    rippleExpand:Play()
-    glowFadeIn:Play()
-    
-    -- Start ripple from center
-    ripple.Position = UDim2.new(0.5, 0, 0.5, 0)
-    ripple.AnchorPoint = Vector2.new(0.5, 0.5)
-    
-    task.wait(0.1)
-    accentGrow:Play()
-    frameFadeIn:Play()
-    
-    task.wait(0.15)
-    fadeIn:Play()
-    
-    task.wait(0.05)
-    fadeIn2:Play()
-    
-    task.wait(0.05)
-    fadeIn3:Play()
-    
-    -- Start pulse animation after everything is shown
-    task.delay(0.6, startPulse)
-    
-    -- Hover effect for the entire notification
-    local hoverScale = 1.02
-    frame.MouseEnter:Connect(function()
-        playSound("NotificationHover")
+    -- Animation sequences
+    local function playEntranceAnimations()
+        -- Slide in animation with bounce
+        local slideIn = TweenService:Create(frame, TweenInfo.new(ANIMATION_DURATION, Enum.EasingStyle.Back, Enum.EasingDirection.Out), {
+            Position = UDim2.new(1, -10, 0.85, 0),
+            BackgroundTransparency = 0.1
+        })
         
-        TweenService:Create(frame, TweenInfo.new(0.2), {
-            Size = UDim2.new(0.35 * hoverScale, 0, 0, 70 * hoverScale)
-        }):Play()
-        TweenService:Create(shadow, TweenInfo.new(0.2), {
-            Size = UDim2.new(1, 30 * hoverScale, 1, 30 * hoverScale),
-            Position = UDim2.new(0, -15 * hoverScale, 0, -15 * hoverScale)
-        }):Play()
-    end)
-    
-    frame.MouseLeave:Connect(function()
-        TweenService:Create(frame, TweenInfo.new(0.2), {
-            Size = UDim2.new(0.35, 0, 0, 70)
-        }):Play()
-        TweenService:Create(shadow, TweenInfo.new(0.2), {
+        -- Shadow pop effect
+        local shadowPop = TweenService:Create(shadow, TweenInfo.new(ANIMATION_DURATION * 0.6, Enum.EasingStyle.Back, Enum.EasingDirection.Out), {
+            ImageTransparency = 0.6,
             Size = UDim2.new(1, 30, 1, 30),
             Position = UDim2.new(0, -15, 0, -15)
-        }):Play()
-    end)
+        })
+        
+        -- Glow effect
+        local glowFadeIn = TweenService:Create(glow, TweenInfo.new(ANIMATION_DURATION, Enum.EasingStyle.Quad), {
+            ImageTransparency = 0.8
+        })
+        
+        -- Ripple effect
+        local rippleExpand = TweenService:Create(ripple, TweenInfo.new(ANIMATION_DURATION * 0.6, Enum.EasingStyle.Quad), {
+            Size = UDim2.new(2, 0, 2, 0),
+            BackgroundTransparency = 1
+        })
+        
+        -- Content fade in
+        local fadeIn = TweenService:Create(titleLabel, TweenInfo.new(ANIMATION_DURATION * 0.8, Enum.EasingStyle.Quad), {
+            TextTransparency = 0
+        })
+        local fadeIn2 = TweenService:Create(messageLabel, TweenInfo.new(ANIMATION_DURATION * 0.8, Enum.EasingStyle.Quad), {
+            TextTransparency = 0
+        })
+        local fadeIn3 = TweenService:Create(closeButton, TweenInfo.new(ANIMATION_DURATION * 0.8, Enum.EasingStyle.Quad), {
+            ImageTransparency = 0
+        })
+        
+        -- Accent line animation
+        local accentGrow = TweenService:Create(accent, TweenInfo.new(ANIMATION_DURATION * 0.8, Enum.EasingStyle.Back, Enum.EasingDirection.Out), {
+            Size = UDim2.new(1, 0, 0, 2)
+        })
+        
+        -- Play animations
+        slideIn:Play()
+        shadowPop:Play()
+        rippleExpand:Play()
+        glowFadeIn:Play()
+        
+        task.wait(ANIMATION_DURATION * 0.1)
+        accentGrow:Play()
+        
+        task.wait(ANIMATION_DURATION * 0.15)
+        fadeIn:Play()
+        
+        task.wait(ANIMATION_DURATION * 0.05)
+        fadeIn2:Play()
+        
+        task.wait(ANIMATION_DURATION * 0.05)
+        fadeIn3:Play()
+        
+        -- Start pulse animation after everything is shown
+        task.delay(ANIMATION_DURATION * 0.6, startPulse)
+    end
 
-    -- Close functionality with animations
+    -- Hover effects
+    local function setupHoverEffects()
+        local hoverScale = 1.02
+        
+        frame.MouseEnter:Connect(function()
+            playSound("NotificationHover")
+            
+            TweenService:Create(frame, TweenInfo.new(0.2), {
+                Size = UDim2.new(NOTIFICATION_WIDTH * hoverScale, 0, 0, NOTIFICATION_HEIGHT * hoverScale)
+            }):Play()
+            TweenService:Create(shadow, TweenInfo.new(0.2), {
+                Size = UDim2.new(1, 30 * hoverScale, 1, 30 * hoverScale),
+                Position = UDim2.new(0, -15 * hoverScale, 0, -15 * hoverScale)
+            }):Play()
+        end)
+        
+        frame.MouseLeave:Connect(function()
+            TweenService:Create(frame, TweenInfo.new(0.2), {
+                Size = UDim2.new(NOTIFICATION_WIDTH, 0, 0, NOTIFICATION_HEIGHT)
+            }):Play()
+            TweenService:Create(shadow, TweenInfo.new(0.2), {
+                Size = UDim2.new(1, 30, 1, 30),
+                Position = UDim2.new(0, -15, 0, -15)
+            }):Play()
+        end)
+
+        -- Close button hover effects
+        closeButton.MouseEnter:Connect(function()
+            playSound("NotificationHover")
+            
+            TweenService:Create(closeButton, TweenInfo.new(0.1), {
+                ImageColor3 = Color3.new(1, 1, 1),
+                Rotation = 90,
+                Size = UDim2.new(0, 22, 0, 22),
+                Position = UDim2.new(1, -26, 0, 5)
+            }):Play()
+        end)
+        
+        closeButton.MouseLeave:Connect(function()
+            TweenService:Create(closeButton, TweenInfo.new(0.1), {
+                ImageColor3 = Color3.fromRGB(180, 180, 180),
+                Rotation = 0,
+                Size = UDim2.new(0, 20, 0, 20),
+                Position = UDim2.new(1, -25, 0, 6)
+            }):Play()
+        end)
+    end
+
+    -- Close functionality
     local closing = false
     local function close()
         if closing then return end
@@ -1038,7 +1005,7 @@ function showNotification(title, message, duration, color)
             pulseConnection:Disconnect()
         end
         
-        -- Create a new ripple for close effect
+        -- Create close ripple
         local closeRipple = ripple:Clone()
         closeRipple.BackgroundTransparency = 0.95
         closeRipple.Size = UDim2.new(0, 0, 0, 0)
@@ -1060,7 +1027,7 @@ function showNotification(title, message, duration, color)
             closeRipple:Destroy()
         end)
         
-        -- Shake effect when closing
+        -- Shake effect
         local shakeOffset = 5
         for i = 1, 3 do
             TweenService:Create(frame, TweenInfo.new(0.05, Enum.EasingStyle.Linear), {
@@ -1071,10 +1038,10 @@ function showNotification(title, message, duration, color)
                 Position = UDim2.new(1, -10 - shakeOffset, 0.85, 0)
             }):Play()
             task.wait(0.05)
-            shakeOffset = shakeOffset * 0.6  -- Reduce shake amount each time
+            shakeOffset = shakeOffset * 0.6
         end
         
-        -- Fade out content first
+        -- Fade out content
         local fadeOut = TweenService:Create(titleLabel, TweenInfo.new(0.2, Enum.EasingStyle.Quad), {
             TextTransparency = 1
         })
@@ -1082,14 +1049,14 @@ function showNotification(title, message, duration, color)
             TextTransparency = 1
         })
         local fadeOut3 = TweenService:Create(closeButton, TweenInfo.new(0.2, Enum.EasingStyle.Quad), {
-            TextTransparency = 1
+            ImageTransparency = 1
         })
         
         fadeOut:Play()
         fadeOut2:Play()
         fadeOut3:Play()
         
-        -- Then slide out the frame
+        -- Slide out frame
         task.wait(0.15)
         local slideOut = TweenService:Create(frame, TweenInfo.new(0.3, Enum.EasingStyle.Back, Enum.EasingDirection.In), {
             Position = UDim2.new(1, 10, 0.85, 0),
@@ -1101,7 +1068,7 @@ function showNotification(title, message, duration, color)
             Size = UDim2.new(0, 0, 0, 2)
         })
         
-        -- Shadow fade out and shrink
+        -- Shadow fade out
         local shadowFadeOut = TweenService:Create(shadow, TweenInfo.new(0.3, Enum.EasingStyle.Quad), {
             ImageTransparency = 0.9,
             Size = UDim2.new(1, 20, 1, 20),
@@ -1120,55 +1087,56 @@ function showNotification(title, message, duration, color)
         
         slideOut.Completed:Wait()
         frame:Destroy()
+        isShowingNotification = false
+        showNextNotification()
     end
 
     closeButton.MouseButton1Click:Connect(function()
         playSound("NotificationClick")
         close()
     end)
-    
-    -- Enhanced close button hover effects
-    closeButton.MouseEnter:Connect(function()
-        playSound("NotificationHover")
-        
-        TweenService:Create(closeButton, TweenInfo.new(0.1), {
-            TextColor3 = Color3.new(1, 1, 1),
-            Rotation = 90,
-            TextSize = 22
-        }):Play()
-    end)
-    
-    closeButton.MouseLeave:Connect(function()
-        TweenService:Create(closeButton, TweenInfo.new(0.1), {
-            TextColor3 = Color3.fromRGB(180, 180, 180),
-            Rotation = 0,
-            TextSize = 20
-        }):Play()
-    end)
+
+    -- Progress bar animation
+    local progressTween = TweenService:Create(progressFill, TweenInfo.new(duration, Enum.EasingStyle.Linear), {
+        Size = UDim2.new(0, 0, 1, 0)
+    })
+    progressTween:Play()
 
     -- Auto-close after duration
     task.delay(duration, function()
         close()
     end)
+
+    -- Play entrance animations
+    playEntranceAnimations()
+    setupHoverEffects()
 end
 
--- Example usage with different animations
-showNotification("Hello :)", "Made By Hmmm5650", 3, Color3.fromRGB(0, 170, 255))
+-- Queue system function
+function queueNotification(title, message, duration, color)
+    table.insert(notificationQueue, {
+        title = title,
+        message = message,
+        duration = duration or DEFAULT_DURATION,
+        color = color or DEFAULT_COLOR
+    })
+    
+    if not isShowingNotification then
+        showNextNotification()
+    end
+end
 
--- [ LoadsScriptResources ]
-pcall(function()
-    loadstring(game:HttpGet("https://raw.githubusercontent.com/hm5650/LoadResources/refs/heads/main/ResSourcesLoaderSource", true))()
-    warn("StartedScript")
-end)
+-- Example usage
+queueNotification("Made By Hmmm5650", "Script Started", 3, Color3.fromRGB(161, 165, 162))
 
 local Luna = loadstring(game:HttpGet("https://raw.githubusercontent.com/Nebula-Softworks/Luna-Interface-Suite/refs/heads/main/source.lua", true))()
 local Window = Luna:CreateWindow({
     Name = "SilverWare🍴",
-    Subtitle = "(v0.8)",
+    Subtitle = "(v1.0)",
     LogoID = "98445694743887",
     LoadingEnabled = true,
     LoadingTitle = "Starting SilverWare🍴",
-    LoadingSubtitle = "[ Ver, 0.8 ]",
+    LoadingSubtitle = "[ Ver, 1.0 ]",
     ConfigSettings = {
         RootFolder = nil,
         ConfigFolder = "SliverWareConfig"
@@ -1981,6 +1949,7 @@ local ColorPicker = Tab:CreateColorPicker({
     end
 }, "ColorPicker")
 
+
 local Tab = Window:CreateTab({
     Name = "Hitbox Expansion",
     Icon = "view_in_ar",
@@ -1998,9 +1967,9 @@ local Label = Tab:CreateLabel({
 	Style = 3 -- Luna Labels Have 3 Styles : A Basic Label, A Green Information Label and A Red Warning Label. Look At The Following Image For More Details
 })
 
--- Create the UI elements
+-- UI Integration
 local Toggle = Tab:CreateToggle({
-    Name = "Hitbox Expander",
+    Name = "Start Expanding Hitbox",
     Description = nil,
     CurrentValue = false,
     Callback = function(Value)
@@ -2008,15 +1977,13 @@ local Toggle = Tab:CreateToggle({
     end
 }, "Toggle")
 
-Tab:CreateDivider()
-
-local SizeInput = Tab:CreateInput({
-    Name = "Hitbox Size",
+local Input = Tab:CreateInput({
+    Name = "Hitbox Size (textbox)",
     Description = nil,
-    PlaceholderText = "(1-50)",
+    PlaceholderText = "Enter hitbox size",
     CurrentValue = tostring(hitboxSize),
     Numeric = true,
-    MaxCharacters = 2,
+    MaxCharacters = 3,
     Enter = true,
     Callback = function(Text)
         local newSize = tonumber(Text)
@@ -2029,10 +1996,23 @@ local SizeInput = Tab:CreateInput({
     end
 }, "Input")
 
-local TransparencyInput = Tab:CreateInput({
+local Slider = Tab:CreateSlider({
+    Name = "Hitbox Size (Slider)",
+    Range = {1, 50},
+    Increment = 1,
+    CurrentValue = hitboxSize,
+    Callback = function(Value)
+        hitboxSize = Value
+        if hitboxEnabled then
+            applyHitboxesToAllPlayers()
+        end
+    end
+}, "Slider")
+
+local Input = Tab:CreateInput({
     Name = "Hitbox Transparency",
     Description = nil,
-    PlaceholderText = "(0-1)",
+    PlaceholderText = "Enter transparency (0-1)",
     CurrentValue = tostring(hitboxTransparency),
     Numeric = true,
     MaxCharacters = 3,
@@ -2048,12 +2028,23 @@ local TransparencyInput = Tab:CreateInput({
     end
 }, "Input")
 
-Tab:CreateDivider()
+local Dropdown = Tab:CreateDropdown({
+    Name = "Select Hitbox Type",
+    Description = nil,
+    Options = {"Both", "Only Hrp", "Only Head"},
+    CurrentOption = {"Both"},
+    MultipleOptions = false,
+    Callback = function(Option)
+        hitboxType = Option
+        if hitboxEnabled then
+            applyHitboxesToAllPlayers()
+        end
+    end
+}, "Dropdown")
 
 local ColorPicker = Tab:CreateColorPicker({
-    Name = "HitboxColor",
+    Name = "Hitbox Color",
     Color = hitboxColor,
-    Flag = "HitboxColor",
     Callback = function(Value)
         hitboxColor = Value
         if hitboxEnabled then
@@ -2064,17 +2055,13 @@ local ColorPicker = Tab:CreateColorPicker({
 
 -- Cleanup function
 local function cleanup()
-    -- Clean up hitboxes
     resetHitboxesOnAllPlayers()
-    
-    -- Clean up coroutine
     if hitboxCoroutine then
         coroutine.close(hitboxCoroutine)
-        hitboxCoroutine = nil
     end
 end
 
--- Store cleanup function for external access
+-- Store cleanup function
 getgenv().HitbloxCleanup = cleanup
 
 local Tab = Window:CreateTab({
@@ -2149,6 +2136,20 @@ local Tab = Window:CreateTab({
 	ShowTitle = true -- This will determine whether the big header text in the tab will show
 })
 
+-- Your UI Toggle
+local Toggle = Tab:CreateToggle({
+	Name = "TpKill",
+	Description = "Teleports above a random Victim. Changes when they die.",
+	CurrentValue = false,
+	Callback = function(Value)
+		if Value then
+			startTeleporting()
+		else
+			stopTeleporting()
+		end
+	end
+}, "Toggle")
+
 local Toggle = Tab:CreateToggle({
     Name = "Auto Clicker",
     Description = "Automatically clicks for you",
@@ -2211,12 +2212,12 @@ Tab:CreateDivider()
 
 local Paragraph = Tab:CreateParagraph({
 	Title = "[ UpdateLog ]",
-	Text = "Added 1 Tab FpsBoosterTab | Added A Another AntiKick | Bugs Fixed 1"
+	Text = "Added TpKill | Fixed Hitbox Expander Callback Errors | Added More Stuff To The Hitbox ExpansionTab | Bugs Fixed 25"
 })
 
 Luna:Notification({ 
 	Title = "🍴 [ Gui Finished Loading ] 🍴",
 	Icon = "notifications_active",
 	ImageSource = "Material",
-	Content = "Thank You For using SilverWare"
+	Content = "Made By Hmmm5650"
 })
