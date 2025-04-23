@@ -5,7 +5,8 @@ local UserInputService = game:GetService("UserInputService")
 local SoundService = game:GetService("SoundService")
 
 -- StoredVariables
--- Esp
+
+-- Esp Variable
 local Players = game:GetService("Players")
 local Teams = game:GetService("Teams")
 local RunService = game:GetService("RunService")
@@ -305,8 +306,11 @@ local function onCharacterAdded(character, player)
     
     if not humanoidRootPart or not humanoid then return end
     
-    -- Check if ESP should be created
-    if highlightEspEnabled or nameEspEnabled or boxEspEnabled or distanceEspEnabled or healthEspEnabled then
+    -- Only create ESP if at least one ESP type is enabled and player is an enemy (if team check is on)
+    local shouldCreateEsp = (highlightEspEnabled or nameEspEnabled or boxEspEnabled or distanceEspEnabled or healthEspEnabled) and
+                          (not teamCheckEnabled or isEnemy(player))
+    
+    if shouldCreateEsp then
         createEsp(player)
     end
     
@@ -321,6 +325,18 @@ local function onCharacterAdded(character, player)
             end
             espObjects[player] = nil
         end
+        
+        -- Recreate ESP when player respawns if conditions are met
+        player.CharacterAdded:Connect(function(newCharacter)
+            task.wait(1) -- Wait for character to load
+            
+            local shouldRecreate = (highlightEspEnabled or nameEspEnabled or boxEspEnabled or distanceEspEnabled or healthEspEnabled) and
+                                 (not teamCheckEnabled or isEnemy(player))
+            
+            if shouldRecreate then
+                createEsp(player)
+            end
+        end)
     end)
 end
 
@@ -1132,11 +1148,11 @@ queueNotification("Made By Hmmm5650", "Script Started", 3, Color3.fromRGB(161, 1
 local Luna = loadstring(game:HttpGet("https://raw.githubusercontent.com/Nebula-Softworks/Luna-Interface-Suite/refs/heads/main/source.lua", true))()
 local Window = Luna:CreateWindow({
     Name = "SilverWare🍴",
-    Subtitle = "(v1.0)",
+    Subtitle = "(v1.1)",
     LogoID = "98445694743887",
     LoadingEnabled = true,
     LoadingTitle = "Starting SilverWare🍴",
-    LoadingSubtitle = "[ Ver, 1.0 ]",
+    LoadingSubtitle = "[ Ver, 1.1 ]",
     ConfigSettings = {
         RootFolder = nil,
         ConfigFolder = "SliverWareConfig"
@@ -2216,7 +2232,7 @@ Tab:CreateDivider()
 
 local Paragraph = Tab:CreateParagraph({
 	Title = "[ UpdateLog ]",
-	Text = "Added TpKill | Fixed Hitbox Expander Callback Errors | Added More Stuff To The Hitbox ExpansionTab | Bugs Fixed 25"
+	Text = "Fixed Esp Delay | Bugs Fixed 2"
 })
 
 Luna:Notification({ 
