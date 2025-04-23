@@ -671,6 +671,67 @@ local function toggleFpsCounter(enable)
     end
 end
 
+-- TpKill Variable
+local Players = game:GetService("Players")
+local LocalPlayer = Players.LocalPlayer
+local RunService = game:GetService("RunService")
+local Teams = game:GetService("Teams")
+
+local targetPlayer = nil
+local connection = nil
+
+-- Helper to check if two players are on the same team
+local function isEnemy(player)
+	if not Teams then return true end -- if teams not used
+	if not player.Team or not LocalPlayer.Team then return true end
+	return player.Team ~= LocalPlayer.Team
+end
+
+-- Get a random valid enemy (or just non-local player if no teams)
+local function getRandomEnemy()
+	local enemies = {}
+	for _, player in ipairs(Players:GetPlayers()) do
+		if player ~= LocalPlayer and isEnemy(player) then
+			table.insert(enemies, player)
+		end
+	end
+	if #enemies > 0 then
+		return enemies[math.random(1, #enemies)]
+	end
+	return nil
+end
+
+-- Start teleport logic
+local function startTeleporting()
+	targetPlayer = getRandomEnemy()
+	connection = RunService.Heartbeat:Connect(function()
+		-- Validate target
+		if not targetPlayer or not targetPlayer.Character or not targetPlayer.Character:FindFirstChild("HumanoidRootPart") then
+			targetPlayer = getRandomEnemy()
+		end
+
+		if targetPlayer and targetPlayer.Character and targetPlayer.Character:FindFirstChild("HumanoidRootPart") then
+			local targetRoot = targetPlayer.Character.HumanoidRootPart
+			local myRoot = LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart")
+			if targetRoot and myRoot then
+				myRoot.CFrame = targetRoot.CFrame + Vector3.new(0, 20, 0)
+			end
+
+			local humanoid = targetPlayer.Character:FindFirstChildOfClass("Humanoid")
+			if humanoid and humanoid.Health <= 0 then
+				targetPlayer = getRandomEnemy()
+			end
+		end
+	end)
+end
+
+-- Stop teleporting
+local function stopTeleporting()
+	if connection then
+		connection:Disconnect()
+		connection = nil
+	end
+end
 
 -- Notify
 local DEFAULT_DURATION = 5
@@ -1148,11 +1209,11 @@ queueNotification("Made By Hmmm5650", "Script Started", 3, Color3.fromRGB(161, 1
 local Luna = loadstring(game:HttpGet("https://raw.githubusercontent.com/Nebula-Softworks/Luna-Interface-Suite/refs/heads/main/source.lua", true))()
 local Window = Luna:CreateWindow({
     Name = "SilverWare🍴",
-    Subtitle = "(v1.1)",
+    Subtitle = "(v1.2)",
     LogoID = "98445694743887",
-    LoadingEnabled = true,
+    LoadingEnabled = false,
     LoadingTitle = "Starting SilverWare🍴",
-    LoadingSubtitle = "[ Ver, 1.1 ]",
+    LoadingSubtitle = "[ Ver, 1.2 ]",
     ConfigSettings = {
         RootFolder = nil,
         ConfigFolder = "SliverWareConfig"
@@ -2091,6 +2152,25 @@ local Tab = Window:CreateTab({
 	ShowTitle = true -- This will determine whether the big header text in the tab will show
 })
 
+local Label = Tab:CreateLabel({
+	Text = "You Might Get Flinged From Using ''TpKill''",
+	Style = 2 -- Luna Labels Have 3 Styles : A Basic Label, A Green Information Label and A Red Warning Label. Look At The Following Image For More Details
+})
+
+local Toggle = Tab:CreateToggle({
+	Name = "TpKill",
+	Description = "Teleports above a random enemy. Changes when they die.",
+	CurrentValue = false,
+	Callback = function(Value)
+		if Value then
+			startTeleporting()
+		else
+			stopTeleporting()
+		end
+	end
+}, "Toggle")
+
+
 local Button = Tab:CreateButton({
 	Name = "InstantKill",
 	Description = "Needs a sword for it to work", -- Creates A Description For Users to know what the button does (looks bad if you use it all the time),
@@ -2156,20 +2236,6 @@ local Tab = Window:CreateTab({
 	ShowTitle = true -- This will determine whether the big header text in the tab will show
 })
 
--- Your UI Toggle
-local Toggle = Tab:CreateToggle({
-	Name = "TpKill",
-	Description = "Teleports above a random Victim. Changes when they die.",
-	CurrentValue = false,
-	Callback = function(Value)
-		if Value then
-			startTeleporting()
-		else
-			stopTeleporting()
-		end
-	end
-}, "Toggle")
-
 local Toggle = Tab:CreateToggle({
     Name = "Auto Clicker",
     Description = "Automatically clicks for you",
@@ -2223,6 +2289,11 @@ local Tab = Window:CreateTab({
 	ShowTitle = true -- This will determine whether the big header text in the tab will show
 })
 
+local Label = Tab:CreateLabel({
+	Text = "I Don't Have Discord Btw",
+	Style = 1 -- Luna Labels Have 3 Styles : A Basic Label, A Green Information Label and A Red Warning Label. Look At The Following Image For More Details
+})
+
 local Paragraph = Tab:CreateParagraph({
 	Title = "[ About ]",
 	Text = "SilverWare Is a free Exploit with no KeySystems and it has so many features enough to destroy you're Victims"
@@ -2232,7 +2303,13 @@ Tab:CreateDivider()
 
 local Paragraph = Tab:CreateParagraph({
 	Title = "[ UpdateLog ]",
-	Text = "Fixed Esp Delay | Bugs Fixed 2"
+	Text = "Fixed Tpkill | Added A Home Tab| Bugs Fixed 2"
+})
+
+Window:CreateHomeTab({
+	SupportedExecutors = {}, -- A Table Of Executors Your Script Supports. Add strings of the executor names for each executor.
+	DiscordInvite = "I don't have discord", -- The Discord Invite Link. Do Not Include discord.gg/ | Only Include the code.
+	Icon = 1, -- By Default, The Icon Is The Home Icon. If You would like to change it to dashboard, replace the interger with 2
 })
 
 Luna:Notification({ 
