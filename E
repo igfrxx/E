@@ -1979,8 +1979,6 @@ local Toggle = Tab:CreateToggle({
 
 Tab:CreateDivider()
 
-Tab:CreateDivider()
-
 local Input = Tab:CreateInput({
     Name = "Hitbox Size (textbox)",
     Description = nil,
