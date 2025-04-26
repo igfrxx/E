@@ -1,15 +1,19 @@
+-- Services
 local Players = game:GetService("Players")
 local TweenService = game:GetService("TweenService")
 local RunService = game:GetService("RunService")
 local UserInputService = game:GetService("UserInputService")
 local SoundService = game:GetService("SoundService")
+local Teams = game:GetService("Teams")
+local Lighting = game:GetService("Lighting")
+local Players = game:GetService("Players")
+local LocalPlayer = Players.LocalPlayer
+local RunService = game:GetService("RunService")
+local Teams = game:GetService("Teams")
 
 -- StoredVariables
 
 -- VoidProtection Variable
-local Players = game:GetService("Players")
-local RunService = game:GetService("RunService")
-
 local player = Players.LocalPlayer
 local character = player.Character or player.CharacterAdded:Wait()
 local hrp = character:WaitForChild("HumanoidRootPart")
@@ -74,9 +78,6 @@ end
 
 
 -- Esp Variable
-local Players = game:GetService("Players")
-local Teams = game:GetService("Teams")
-local RunService = game:GetService("RunService")
 
 -- Configurations
 local highlightEspEnabled = false
@@ -457,11 +458,6 @@ local espUpdateLoop = RunService.RenderStepped:Connect(function()
 end)
 
 -- Hitbox Variable
--- Services
-local Players = game:GetService("Players")
-local RunService = game:GetService("RunService")
-
--- Player variables
 local localPlayer = Players.LocalPlayer
 while not localPlayer do
     task.wait()
@@ -470,7 +466,7 @@ end
 
 -- Configuration variables
 local hitboxSize = 10
-local hitboxTransparency = 0.9
+local hitboxTransparency = 0.5
 local hitboxEnabled = false
 local hitboxType = "Both" -- "Both", "Only Hrp", "Only Head"
 local hitboxColor = Color3.fromRGB(255, 0, 0)
@@ -739,11 +735,6 @@ local function toggleFpsCounter(enable)
 end
 
 -- TpKill Variable
-local Players = game:GetService("Players")
-local LocalPlayer = Players.LocalPlayer
-local RunService = game:GetService("RunService")
-local Teams = game:GetService("Teams")
-
 local targetPlayer = nil
 local connection = nil
 
@@ -1392,16 +1383,54 @@ local character = player.Character or player.CharacterAdded:Wait()
 local humanoid = character:WaitForChild("Humanoid")
 local rootPart = character:WaitForChild("HumanoidRootPart")
 
+local player = game:GetService("Players").LocalPlayer
+local humanoid, rootPart
 local tpwalkspeed = 1 -- Default speed
 local tpwalking = false
 local tpConnection = nil
 
+-- Function to initialize character references
+local function initializeCharacter()
+    local character = player.Character or player.CharacterAdded:Wait()
+    humanoid = character:WaitForChild("Humanoid")
+    rootPart = character:WaitForChild("HumanoidRootPart")
+end
+
+-- Initialize on script start
+initializeCharacter()
+
+-- Handle respawns
+player.CharacterAdded:Connect(function(character)
+    -- Wait for character to fully load
+    task.wait(0.5)
+    initializeCharacter()
+    
+    -- Restart TP Walk if it was active
+    if tpwalking then
+        TpWalk()
+    end
+end)
+
 -- TP Walk Functionality
 local function TpWalk()
+    -- Disconnect any existing connection
+    if tpConnection then
+        tpConnection:Disconnect()
+        tpConnection = nil
+    end
+    
     tpwalking = true
 
-    while tpwalking and humanoid.Health > 0 do
-        game:GetService("RunService").Heartbeat:Wait()
+    -- Create new connection
+    tpConnection = game:GetService("RunService").Heartbeat:Connect(function()
+        if not humanoid or not rootPart or humanoid.Health <= 0 then
+            tpwalking = false
+            if tpConnection then
+                tpConnection:Disconnect()
+                tpConnection = nil
+            end
+            return
+        end
 
         if humanoid.MoveDirection.Magnitude > 0 then
             -- Calculate movement direction and apply speed
@@ -1409,7 +1438,7 @@ local function TpWalk()
             local velocity = moveDirection * tpwalkspeed * 50 -- Adjust speed multiplier here
             rootPart.CFrame = rootPart.CFrame + velocity * game:GetService("RunService").Heartbeat:Wait()
         end
-    end
+    end)
 end
 
 -- Create TP Walk Toggle
@@ -1420,7 +1449,7 @@ local TpWalkToggle = Tab:CreateToggle({
     Callback = function(Value)
         if Value then
             tpwalking = true
-            spawn(TpWalk)
+            TpWalk()
         else
             tpwalking = false
             if tpConnection then
@@ -1435,7 +1464,7 @@ local TpWalkToggle = Tab:CreateToggle({
 local TpWalkSpeedInput = Tab:CreateInput({
     Name = "TP Walk Speed",
     Description = "Set teleport movement speed",
-    PlaceholderText = "Enter speed (default: 1)",
+    PlaceholderText = "1",
     CurrentValue = tostring(tpwalkspeed),
     Numeric = true, -- Only allow numbers
     MaxCharacters = 3, -- Limit to 3 characters
@@ -1471,13 +1500,7 @@ local function ToggleFly(Value)
     local hum = chr:WaitForChild("Humanoid")
     
     if Value then
-        -- Enable fly
-        game:GetService("StarterGui"):SetCore("SendNotification", { 
-            Title = "FLY ENABLED",
-            Text = "Speed: "..FlySpeed,
-            Icon = "rbxthumb://type=Asset&id=5107182114&w=150&h=150",
-            Duration = 3
-        })
+        
         
         -- Disable all states except swimming
         for _, state in pairs(Enum.HumanoidStateType:GetEnumItems()) do
@@ -1577,13 +1600,7 @@ local function ToggleFly(Value)
         end)
         table.insert(FlyParts, {Disconnect = function() charAddedConnection:Disconnect() end})
     else
-        -- Disable fly
-        game:GetService("StarterGui"):SetCore("SendNotification", { 
-            Title = "FLY DISABLED",
-            Text = "Fly has been turned off",
-            Icon = "rbxthumb://type=Asset&id=5107182114&w=150&h=150",
-            Duration = 3
-        })
+        
         
         -- Re-enable all humanoid states
         if hum then
@@ -1796,29 +1813,7 @@ local Button = Tab:CreateButton({
 
 Tab:CreateDivider()
 
-local Button = Tab:CreateButton({
-	Name = "Memory Cleaner",
-	Description = "Attempts to clean up unused memory",
-	Callback = function()
-		-- Trigger garbage collection
-		collectgarbage("collect")
 
-		-- Try to clear cached content (for LocalScripts)
-		if typeof(getgc) == "function" then
-			for _, obj in ipairs(getgc(true)) do
-				if typeof(obj) == "table" then
-					for k, v in pairs(obj) do
-						if typeof(v) == "Instance" and not v:IsDescendantOf(game) then
-							obj[k] = nil
-						end
-					end
-				end
-			end
-		end
-
-		print("Memory cleaned.")
-	end
-})
 
 -- Remove Fog Toggle
 local RemoveFogToggle = Tab:CreateToggle({
