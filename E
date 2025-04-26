@@ -2961,7 +2961,7 @@ Tab:CreateDivider()
 
 local Paragraph = Tab:CreateParagraph({
 	Title = "[ UpdateLog ]",
-	Text = "Added More Stuff To The Local Tab | Added A Hurtbox Expansion Tab| Renamed The Settings Tab To "Local" | Bugs Fixed 2"
+	Text = "Added More Stuff To The Local Tab | Added A Hurtbox Expansion Tab| Renamed The Settings Tab To "Local" | Bugs Fixed 130"
 })
 
 Luna:Notification({ 
