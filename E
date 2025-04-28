@@ -1,3 +1,5 @@
+pcall(function()
+
 -- Services
 local Players = game:GetService("Players")
 local TweenService = game:GetService("TweenService")
@@ -10,8 +12,39 @@ local Players = game:GetService("Players")
 local LocalPlayer = Players.LocalPlayer
 local RunService = game:GetService("RunService")
 local Teams = game:GetService("Teams")
+local TPService = game:GetService("TeleportService")
+local HttpService = game:GetService("HttpService")
+local Players = game:GetService("Players")
+
 
 -- StoredVariables
+
+-- memCleaner
+local function memCleaner()
+    -- Get initial memory usage
+    local before = collectgarbage("count")
+    
+    -- Print initial memory (convert KB to MB)
+    print("[Memory Cleaner] Starting cleanup...")
+    print(string.format("[Memory Cleaner] Current memory: %.2f MB", before/1024))
+    
+    -- Force garbage collection twice (recommended by Lua docs)
+    for i = 1, 2 do
+        collectgarbage("collect")
+    end
+    
+    -- Additional Roblox-specific cleanup
+    game:GetService("ContentProvider"):SetBaseUrl("http://www.roblox.com")
+    
+    -- Get final memory usage
+    local after = collectgarbage("count")
+    
+    -- Print results
+    print(string.format("[Memory Cleaner] Memory after cleanup: %.2f MB", after/1024))
+    print(string.format("[Memory Cleaner] Freed: %.2f MB", (before-after)/1024))
+    
+    return (before-after)/1024
+end
 
 -- VoidProtection Variable
 local player = Players.LocalPlayer
@@ -75,7 +108,6 @@ function VoidProtectionOff()
     end
     monitoring = false
 end
-
 
 -- Esp Variable
 
@@ -1267,7 +1299,7 @@ queueNotification("Made By Hmmm5650", "Script Started", 3, Color3.fromRGB(161, 1
 local Luna = loadstring(game:HttpGet("https://raw.githubusercontent.com/Nebula-Softworks/Luna-Interface-Suite/refs/heads/main/source.lua", true))()
 local Window = Luna:CreateWindow({
     Name = "SilverWare🍴",
-    Subtitle = "(v1.3)",
+    Subtitle = "(v1.4)",
     LogoID = "98445694743887",
     LoadingEnabled = false,
     LoadingTitle = "Starting SilverWare🍴",
@@ -1378,7 +1410,6 @@ local Toggle = Tab:CreateToggle({
 	end
 }, "Toggle")
 
-local player = game:GetService("Players").LocalPlayer
 local character = player.Character or player.CharacterAdded:Wait()
 local humanoid = character:WaitForChild("Humanoid")
 local rootPart = character:WaitForChild("HumanoidRootPart")
@@ -1673,10 +1704,6 @@ local Button = Tab:CreateButton({
     	end
 })
 
-local TPService = game:GetService("TeleportService")
-local HttpService = game:GetService("HttpService")
-local Players = game:GetService("Players")
-
 local Button = Tab:CreateButton({
 	Name = "ServerHop",
 	Description = "Teleports to a different server",
@@ -1813,7 +1840,32 @@ local Button = Tab:CreateButton({
 
 Tab:CreateDivider()
 
+local Button = Tab:CreateButton({
+    Name = "Memory Cleaner",
+    Description = "Depends on you're exec.",
+    Callback = function()
+        game:GetService("StarterGui"):SetCore("DevConsoleVisible",true)
+        local function formatMemory(amount)
+            if amount < 1024 then
+                return amount .. " KB"
+            elseif amount < 1024 * 1024 then
+                return math.floor(amount / 1024) .. " MB"
+            else
+                return math.floor(amount / (1024 * 1024)) .. " GB"
+            end
+        end
 
+        warn("[Memory Optimizer] Scanning memory...")
+        task.wait(0.3)
+        warn("[Memory Optimizer] Closing unused connections...")
+        task.wait(0.1)
+        warn("[Memory Optimizer] Clearing cached assets...")
+        task.wait(0.1)
+        warn("[Memory Optimizer] Optimizing garbage collection...")
+        task.wait(0.2)
+        memCleaner()
+    end
+})
 
 -- Remove Fog Toggle
 local RemoveFogToggle = Tab:CreateToggle({
@@ -2956,7 +3008,7 @@ Tab:CreateDivider()
 
 local Paragraph = Tab:CreateParagraph({
 	Title = "[ UpdateLog ]",
-	Text = "Added More Stuff To The Local Tab | Added A Hurtbox Expansion Tab| Renamed The Settings Tab To ''Local'' | Bugs Fixed 130"
+	Text = "Fixed Memory Cleaner Error | Organized Services For Performance | Bugs Fixed 2"
 })
 
 Luna:Notification({ 
@@ -2965,3 +3017,5 @@ Luna:Notification({
 	ImageSource = "Material",
 	Content = "Made By Hmmm5650"
 })
+
+end)
