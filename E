@@ -766,63 +766,6 @@ local function toggleFpsCounter(enable)
     end
 end
 
--- TpKill Variable
-local targetPlayer = nil
-local connection = nil
-
--- Helper to check if two players are on the same team
-local function isEnemy(player)
-	if not Teams then return true end -- if teams not used
-	if not player.Team or not LocalPlayer.Team then return true end
-	return player.Team ~= LocalPlayer.Team
-end
-
--- Get a random valid enemy (or just non-local player if no teams)
-local function getRandomEnemy()
-	local enemies = {}
-	for _, player in ipairs(Players:GetPlayers()) do
-		if player ~= LocalPlayer and isEnemy(player) then
-			table.insert(enemies, player)
-		end
-	end
-	if #enemies > 0 then
-		return enemies[math.random(1, #enemies)]
-	end
-	return nil
-end
-
--- Start teleport logic
-local function startTeleporting()
-	targetPlayer = getRandomEnemy()
-	connection = RunService.Heartbeat:Connect(function()
-		-- Validate target
-		if not targetPlayer or not targetPlayer.Character or not targetPlayer.Character:FindFirstChild("HumanoidRootPart") then
-			targetPlayer = getRandomEnemy()
-		end
-
-		if targetPlayer and targetPlayer.Character and targetPlayer.Character:FindFirstChild("HumanoidRootPart") then
-			local targetRoot = targetPlayer.Character.HumanoidRootPart
-			local myRoot = LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart")
-			if targetRoot and myRoot then
-				myRoot.CFrame = targetRoot.CFrame + Vector3.new(0, 20, 0)
-			end
-
-			local humanoid = targetPlayer.Character:FindFirstChildOfClass("Humanoid")
-			if humanoid and humanoid.Health <= 0 then
-				targetPlayer = getRandomEnemy()
-			end
-		end
-	end)
-end
-
--- Stop teleporting
-local function stopTeleporting()
-	if connection then
-		connection:Disconnect()
-		connection = nil
-	end
-end
-
 -- Notify
 local DEFAULT_DURATION = 5
 local DEFAULT_COLOR = Color3.fromRGB(0, 170, 255)
@@ -846,11 +789,11 @@ notificationSounds.Name = "NotificationSounds"
 notificationSounds.Parent = SoundService
 
 local soundConfigs = {
-    NotificationAppear = {id = 3023237993, volume = 1},
-    NotificationDisappear = {id = 18595195017, volume = 1},
-    NotificationHover = {id = 7218169592, volume = 0.1},
-    NotificationClick = {id = 177266782, volume = 1},
-    NotificationPulse = {id = 10066936758, volume = 1}
+    NotificationAppear = {id = 3023237993, volume = 0.2},
+    NotificationDisappear = {id = 18595195017, volume = 0.2},
+    NotificationHover = {id = 7218169592, volume = 0.2},
+    NotificationClick = {id = 177266782, volume = 0.2},
+    NotificationPulse = {id = 10066936758, volume = 0.2}
 }
 
 local function playSound(soundName)
@@ -1299,7 +1242,7 @@ queueNotification("Made By Hmmm5650", "Script Started", 3, Color3.fromRGB(161, 1
 local Luna = loadstring(game:HttpGet("https://raw.githubusercontent.com/Nebula-Softworks/Luna-Interface-Suite/refs/heads/main/source.lua", true))()
 local Window = Luna:CreateWindow({
     Name = "SilverWare🍴",
-    Subtitle = "(v1.4)",
+    Subtitle = "(v1.5) [ Only For Mobile ] ",
     LogoID = "98445694743887",
     LoadingEnabled = false,
     LoadingTitle = "Starting SilverWare🍴",
@@ -1315,433 +1258,6 @@ Window:CreateHomeTab({
 	SupportedExecutors = {}, -- A Table Of Executors Your Script Supports. Add strings of the executor names for each executor.
 	DiscordInvite = "I don't have discord", -- The Discord Invite Link. Do Not Include discord.gg/ | Only Include the code.
 	Icon = 1, -- By Default, The Icon Is The Home Icon. If You would like to change it to dashboard, replace the interger with 2
-})
-
-
-local Tab = Window:CreateTab({
-    Name = "Local",
-    Icon = "person",
-    ImageSource = "Material",
-    ShowTitle = true
-})
-
-local Button = Tab:CreateButton({
-	Name = "AntiKick",
-	Description = nil, -- Creates A Description For Users to know what the button does (looks bad if you use it all the time),
-    	Callback = function()
-         loadstring(game:HttpGet("https://raw.githubusercontent.com/OBFhm5650lol/AntkickLol/refs/heads/main/Antikicklol"))()
-    	end
-})
-
-local Button = Tab:CreateButton({
-	Name = "AntiKick 2",
-	Description = nil, -- Creates A Description For Users to know what the button does (looks bad if you use it all the time),
-    	Callback = function()
-         loadstring(game:HttpGet("https://raw.githubusercontent.com/welomenchaina/Loader/refs/heads/main/AntiKickLoader",true))()
-    	end
-})
-
--- FullBright ToggleVariable
-local Lighting = game:GetService("Lighting")
-
--- Store original lighting settings to restore them later
-local originalSettings = {
-	Brightness = Lighting.Brightness,
-	ClockTime = Lighting.ClockTime,
-	FogEnd = Lighting.FogEnd,
-	GlobalShadows = Lighting.GlobalShadows,
-	Ambient = Lighting.Ambient
-}
-
-local Toggle = Tab:CreateToggle({
-	Name = "FullBright",
-	Description = nil,
-	CurrentValue = false,
-	Callback = function(Value)
-		if Value then
-			Lighting.Brightness = 5
-			Lighting.ClockTime = 12
-			Lighting.FogEnd = 100000
-			Lighting.GlobalShadows = false
-			Lighting.Ambient = Color3.new(1, 1, 1)
-		else
-			-- Restore original lighting settings
-			for prop, val in pairs(originalSettings) do
-				Lighting[prop] = val
-			end
-		end
-	end
-}, "FBToggle")
-
-local Button = Tab:CreateButton({
-    Name = "Reset WalkSpeed",
-    Description = "Resets your WalkSpeed to default (16)",
-    Callback = function()
-        local player = game.Players.LocalPlayer
-        if player and player.Character and player.Character:FindFirstChild("Humanoid") then
-            player.Character.Humanoid.WalkSpeed = 16
-        end
-    end
-})
-
-local Slider = Tab:CreateSlider({
-    Name = "WalkSpeed Slider",
-    Range = {0, 200},
-    Increment = 5,
-    CurrentValue = 16,
-    Callback = function(Value)
-        local player = game.Players.LocalPlayer
-        if player and player.Character and player.Character:FindFirstChild("Humanoid") then
-            player.Character.Humanoid.WalkSpeed = Value
-        end
-    end
-}, "WalkSpeedSlider")
-
-local Toggle = Tab:CreateToggle({
-	Name = "VoidProtection",
-	Description = "It just propells you up when your about to fall",
-	CurrentValue = false,
-	Callback = function(Value)
-		if Value then
-			VoidProtectionOn()
-		else
-			VoidProtectionOff()
-		end
-	end
-}, "Toggle")
-
-local character = player.Character or player.CharacterAdded:Wait()
-local humanoid = character:WaitForChild("Humanoid")
-local rootPart = character:WaitForChild("HumanoidRootPart")
-
-local player = game:GetService("Players").LocalPlayer
-local humanoid, rootPart
-local tpwalkspeed = 1 -- Default speed
-local tpwalking = false
-local tpConnection = nil
-
--- Function to initialize character references
-local function initializeCharacter()
-    local character = player.Character or player.CharacterAdded:Wait()
-    humanoid = character:WaitForChild("Humanoid")
-    rootPart = character:WaitForChild("HumanoidRootPart")
-end
-
--- Initialize on script start
-initializeCharacter()
-
--- Handle respawns
-player.CharacterAdded:Connect(function(character)
-    -- Wait for character to fully load
-    task.wait(0.5)
-    initializeCharacter()
-    
-    -- Restart TP Walk if it was active
-    if tpwalking then
-        TpWalk()
-    end
-end)
-
--- TP Walk Functionality
-local function TpWalk()
-    -- Disconnect any existing connection
-    if tpConnection then
-        tpConnection:Disconnect()
-        tpConnection = nil
-    end
-    
-    tpwalking = true
-
-    -- Create new connection
-    tpConnection = game:GetService("RunService").Heartbeat:Connect(function()
-        if not humanoid or not rootPart or humanoid.Health <= 0 then
-            tpwalking = false
-            if tpConnection then
-                tpConnection:Disconnect()
-                tpConnection = nil
-            end
-            return
-        end
-
-        if humanoid.MoveDirection.Magnitude > 0 then
-            -- Calculate movement direction and apply speed
-            local moveDirection = humanoid.MoveDirection.Unit
-            local velocity = moveDirection * tpwalkspeed * 50 -- Adjust speed multiplier here
-            rootPart.CFrame = rootPart.CFrame + velocity * game:GetService("RunService").Heartbeat:Wait()
-        end
-    end)
-end
-
--- Create TP Walk Toggle
-local TpWalkToggle = Tab:CreateToggle({
-    Name = "TP Walk",
-    Description = "Toggle teleport movement",
-    CurrentValue = false,
-    Callback = function(Value)
-        if Value then
-            tpwalking = true
-            TpWalk()
-        else
-            tpwalking = false
-            if tpConnection then
-                tpConnection:Disconnect()
-                tpConnection = nil
-            end
-        end
-    end
-}, "TPWalkToggle")
-
--- Create TP Walk Speed Input
-local TpWalkSpeedInput = Tab:CreateInput({
-    Name = "TP Walk Speed",
-    Description = "Set teleport movement speed",
-    PlaceholderText = "1",
-    CurrentValue = tostring(tpwalkspeed),
-    Numeric = true, -- Only allow numbers
-    MaxCharacters = 3, -- Limit to 3 characters
-    Enter = true, -- Only execute callback when Enter is pressed
-    Callback = function(Text)
-        local newSpeed = tonumber(Text)
-        if newSpeed and newSpeed > 0 then
-            tpwalkspeed = newSpeed
-            print("TP Walk speed set to:", tpwalkspeed)
-        else
-            print("Invalid speed value. Must be a positive number.")
-        end
-    end
-}, "TpWalkInput")
-
-local FlyEnabled = false
-local FlySpeed = 1
-local FlyParts = {} -- Store fly parts to manage them properly
-
-local function CleanupFlyParts()
-    -- Clean up any existing fly parts
-    for _, part in pairs(FlyParts) do
-        if part and part.Parent then
-            part:Destroy()
-        end
-    end
-    FlyParts = {}
-end
-
-local function ToggleFly(Value)
-    local speaker = game:GetService("Players").LocalPlayer
-    local chr = speaker.Character or speaker.CharacterAdded:Wait()
-    local hum = chr:WaitForChild("Humanoid")
-    
-    if Value then
-        
-        
-        -- Disable all states except swimming
-        for _, state in pairs(Enum.HumanoidStateType:GetEnumItems()) do
-            hum:SetStateEnabled(state, false)
-        end
-        hum:ChangeState(Enum.HumanoidStateType.Swimming)
-        
-        -- Clean up any old fly parts first
-        CleanupFlyParts()
-        
-        -- Set up fly mechanics based on rig type
-        local rootPart = (hum.RigType == Enum.HumanoidRigType.R6 and chr:FindFirstChild("Torso")) or chr:FindFirstChild("UpperTorso")
-        if not rootPart then return end
-        
-        -- Create fly parts
-        local bg = Instance.new("BodyGyro", rootPart)
-        bg.P = 9e4
-        bg.maxTorque = Vector3.new(9e9, 9e9, 9e9)
-        bg.cframe = rootPart.CFrame
-        table.insert(FlyParts, bg)
-        
-        local bv = Instance.new("BodyVelocity", rootPart)
-        bv.velocity = Vector3.new(0, 0.1, 0)
-        bv.maxForce = Vector3.new(9e9, 9e9, 9e9)
-        table.insert(FlyParts, bv)
-        
-        hum.PlatformStand = true
-        
-        -- Movement control variables
-        local ctrl = {f = 0, b = 0, l = 0, r = 0}
-        local lastctrl = {f = 0, b = 0, l = 0, r = 0}
-        local maxspeed = 50
-        local speed = FlySpeed
-        
-        -- Movement connection
-        local movementConnection
-        movementConnection = game:GetService("RunService").Heartbeat:Connect(function()
-            if not FlyEnabled or not hum or hum.Health <= 0 then
-                movementConnection:Disconnect()
-                return
-            end
-            
-            -- Speed adjustment
-            if ctrl.l + ctrl.r ~= 0 or ctrl.f + ctrl.b ~= 0 then
-                speed = math.min(speed + 0.5 + (speed/maxspeed), maxspeed)
-            elseif speed > 0 then
-                speed = math.max(speed - 1, 0)
-            end
-            
-            -- Velocity calculation
-            if (ctrl.l + ctrl.r) ~= 0 or (ctrl.f + ctrl.b) ~= 0 then
-                bv.velocity = ((game.Workspace.CurrentCamera.CoordinateFrame.lookVector * (ctrl.f+ctrl.b)) + 
-                             ((game.Workspace.CurrentCamera.CoordinateFrame * CFrame.new(ctrl.l+ctrl.r,(ctrl.f+ctrl.b)*.2,0).p) - 
-                             game.Workspace.CurrentCamera.CoordinateFrame.p)) * speed
-                lastctrl = {f = ctrl.f, b = ctrl.b, l = ctrl.l, r = ctrl.r}
-            elseif speed > 0 then
-                bv.velocity = ((game.Workspace.CurrentCamera.CoordinateFrame.lookVector * (lastctrl.f+lastctrl.b)) + 
-                             ((game.Workspace.CurrentCamera.CoordinateFrame * CFrame.new(lastctrl.l+lastctrl.r,(lastctrl.f+lastctrl.b)*.2,0).p) - 
-                             game.Workspace.CurrentCamera.CoordinateFrame.p)) * speed
-            else
-                bv.velocity = Vector3.new(0, 0, 0)
-            end
-            
-            bg.cframe = game.Workspace.CurrentCamera.CoordinateFrame * CFrame.Angles(-math.rad((ctrl.f+ctrl.b)*50*speed/maxspeed), 0, 0)
-        end)
-        table.insert(FlyParts, {Disconnect = function() movementConnection:Disconnect() end})
-        
-        -- Key input handling
-        local function handleKey(input, isDown)
-            if input.KeyCode == Enum.KeyCode.W then
-                ctrl.f = isDown and 1 or 0
-            elseif input.KeyCode == Enum.KeyCode.S then
-                ctrl.b = isDown and -1 or 0
-            elseif input.KeyCode == Enum.KeyCode.A then
-                ctrl.l = isDown and -1 or 0
-            elseif input.KeyCode == Enum.KeyCode.D then
-                ctrl.r = isDown and 1 or 0
-            end
-        end
-        
-        local beganConnection = game:GetService("UserInputService").InputBegan:Connect(function(input)
-            if FlyEnabled then handleKey(input, true) end
-        end)
-        table.insert(FlyParts, {Disconnect = function() beganConnection:Disconnect() end})
-        
-        local endedConnection = game:GetService("UserInputService").InputEnded:Connect(function(input)
-            if FlyEnabled then handleKey(input, false) end
-        end)
-        table.insert(FlyParts, {Disconnect = function() endedConnection:Disconnect() end})
-        
-        -- Handle character respawn
-        local charAddedConnection = speaker.CharacterAdded:Connect(function()
-            if FlyEnabled then
-                wait(1) -- Wait for character to fully load
-                ToggleFly(true)
-            end
-        end)
-        table.insert(FlyParts, {Disconnect = function() charAddedConnection:Disconnect() end})
-    else
-        
-        
-        -- Re-enable all humanoid states
-        if hum then
-            for _, state in pairs(Enum.HumanoidStateType:GetEnumItems()) do
-                hum:SetStateEnabled(state, true)
-            end
-            hum:ChangeState(Enum.HumanoidStateType.RunningNoPhysics)
-            hum.PlatformStand = false
-        end
-        
-        -- Re-enable animations
-        if chr and chr:FindFirstChild("Animate") then
-            chr.Animate.Disabled = false
-        end
-        
-        -- Clean up fly parts
-        CleanupFlyParts()
-    end
-end
-
-local FlyToggle = Tab:CreateToggle({
-    Name = "Fly",
-    Description = "Req, TpWalk",
-    CurrentValue = false,
-    Callback = function(Value)
-        FlyEnabled = Value
-        ToggleFly(Value)
-    end
-}, "FlyToggle")
-
-local noclipConnection
-local Toggle = Tab:CreateToggle({
-	Name = "Noclip",
-	Description = "Walk through objects",
-	CurrentValue = false,
-	Callback = function(Value)
-		local player = game.Players.LocalPlayer
-		local character = player.Character or player.CharacterAdded:Wait()
-
-		if Value then
-			noclipConnection = game:GetService("RunService").Stepped:Connect(function()
-				for _, part in ipairs(character:GetDescendants()) do
-					if part:IsA("BasePart") then
-						part.CanCollide = false
-					end
-				end
-			end)
-		else
-			if noclipConnection then
-				noclipConnection:Disconnect()
-				noclipConnection = nil
-			end
-			for _, part in ipairs(character:GetDescendants()) do
-				if part:IsA("BasePart") then
-					part.CanCollide = true
-				end
-			end
-		end
-	end
-}, "NoclipToggle")
-
-Tab:CreateSection("Settings")
-Tab:CreateDivider()
-
-local Button = Tab:CreateButton({
-	Name = "Show Console",
-	Description = nil, -- Creates A Description For Users to know what the button does (looks bad if you use it all the time),
-    	Callback = function()
-         game:GetService("StarterGui"):SetCore("DevConsoleVisible",true)
-    	end
-})
-
-local Button = Tab:CreateButton({
-	Name = "ServerHop",
-	Description = "Teleports to a different server",
-	Callback = function()
-		local PlaceId = game.PlaceId
-		local JobIds = {}
-
-		-- Get a list of public servers
-		local function GetServers(cursor)
-			local url = "https://games.roblox.com/v1/games/" .. PlaceId .. "/servers/Public?sortOrder=Asc&limit=100"
-			if cursor then
-				url = url .. "&cursor=" .. cursor
-			end
-
-			local success, result = pcall(function()
-				return HttpService:JSONDecode(game:HttpGet(url))
-			end)
-
-			if success and result and result.data then
-				for _, server in ipairs(result.data) do
-					if server.playing < server.maxPlayers and server.id ~= game.JobId then
-						table.insert(JobIds, server.id)
-					end
-				end
-				if result.nextPageCursor then
-					GetServers(result.nextPageCursor)
-				end
-			end
-		end
-
-		GetServers()
-
-		if #JobIds > 0 then
-			TPService:TeleportToPlaceInstance(PlaceId, JobIds[math.random(1, #JobIds)], Players.LocalPlayer)
-		else
-			warn("No available servers found to hop to.")
-		end
-	end
 })
 
 local Tab = Window:CreateTab({
@@ -2289,7 +1805,7 @@ local Toggle = Tab:CreateToggle({
                     return false
                 end
 
-                -- Find best target function
+                -- Then modify the findBestTarget function in the aimlock code (replace the existing one):
                 local function findBestTarget()
                     local bestTarget = nil
                     local closestDistance = math.huge
@@ -2305,7 +1821,6 @@ local Toggle = Tab:CreateToggle({
                     
                     local targetCenter = targetIndicator.AbsolutePosition + (targetIndicator.AbsoluteSize / 2)
                     local targetRadius = fovSize / 2
-
                     for _, player in pairs(Players:GetPlayers()) do
                         if isEnemyForAimAssist(player) and player.Character then
                             local character = player.Character
@@ -2316,23 +1831,42 @@ local Toggle = Tab:CreateToggle({
                             local head = character:FindFirstChild("Head")
                             
                             if enemyRoot then
-                                local screenPosition, onScreen = camera:WorldToScreenPoint(enemyRoot.Position)
-                                if onScreen then
-                                    local distanceFromCenter = (Vector2.new(screenPosition.X, screenPosition.Y) - targetCenter).Magnitude
-                                    local distanceFromPlayer = (rootPart.Position - enemyRoot.Position).Magnitude
-                                    
-                                    if distanceFromCenter <= targetRadius 
-                                       and distanceFromPlayer <= maxDistance 
-                                       and distanceFromCenter < closestDistance 
+                                local distanceFromPlayer = (rootPart.Position - enemyRoot.Position).Magnitude
+                                
+                                -- Modified for 360 aimlock
+                                if _G.AimlockUI.AimAssist.Enable360 then
+                                    -- 360 mode - check distance only
+                                    if distanceFromPlayer <= maxDistance 
+                                       and distanceFromPlayer < closestDistance 
                                        and isVisible(enemyRoot.Position, character) then
                                         
-                                        closestDistance = distanceFromCenter
+                                        closestDistance = distanceFromPlayer
                                         bestTarget = {
                                             player = player,
                                             root = enemyRoot,
                                             head = head,
                                             character = character
                                         }
+                                    end
+                                else
+                                    -- Normal mode - check screen position
+                                    local screenPosition, onScreen = camera:WorldToScreenPoint(enemyRoot.Position)
+                                    if onScreen then
+                                        local distanceFromCenter = (Vector2.new(screenPosition.X, screenPosition.Y) - targetCenter).Magnitude
+                                        
+                                        if distanceFromCenter <= targetRadius 
+                                           and distanceFromPlayer <= maxDistance 
+                                           and distanceFromCenter < closestDistance 
+                                           and isVisible(enemyRoot.Position, character) then
+                                            
+                                            closestDistance = distanceFromCenter
+                                            bestTarget = {
+                                                player = player,
+                                                root = enemyRoot,
+                                                head = head,
+                                                character = character
+                                            }
+                                        end
                                     end
                                 end
                             end
@@ -2456,6 +1990,21 @@ local Toggle = Tab:CreateToggle({
     end
 }, "AimLockToggle")
 
+local Toggle = Tab:CreateToggle({
+    Name = "360 Aimlock",
+    Description = "aimlock in all directions less legit & precise but safer.",
+    CurrentValue = false,
+    Callback = function(Value)
+        if _G.AimlockUI then
+            _G.AimlockUI.AimAssist.Enable360 = Value
+            -- Update the target finding logic if aimlock is active
+            if _G.AimlockUI.AimAssist.Active then
+                _G.AimlockUI.AimAssist.UpdateToggle()
+            end
+        end
+    end
+}, "360AimlockToggle")
+
 Tab:CreateDivider()
 
 local HighlightToggle = Tab:CreateToggle({
@@ -2549,6 +2098,95 @@ local ColorPicker = Tab:CreateColorPicker({
         end
     end
 }, "AimlockFovColorPicker")
+
+local Players = game:GetService("Players")
+local RunService = game:GetService("RunService")
+local LocalPlayer = Players.LocalPlayer
+local Mouse = LocalPlayer:GetMouse()
+local UserInputService = game:GetService("UserInputService")
+
+-- Vars
+local triggerBotEnabled = false
+local triggerDelay = 0.1
+local isFiring = false
+
+-- Optional team check toggle
+local teamCheck = true
+
+-- Raycasting function
+local function getRaycastTarget()
+    local camera = workspace.CurrentCamera
+    local origin = camera.CFrame.Position
+    local direction = (Mouse.Hit.Position - origin).Unit * 1000
+
+    local raycastParams = RaycastParams.new()
+    raycastParams.FilterType = Enum.RaycastFilterType.Blacklist
+    raycastParams.FilterDescendantsInstances = {LocalPlayer.Character}
+    raycastParams.IgnoreWater = true
+
+    local result = workspace:Raycast(origin, direction, raycastParams)
+    if result then
+        local part = result.Instance
+        local model = part:FindFirstAncestorOfClass("Model")
+        local player = Players:GetPlayerFromCharacter(model)
+        if player and player ~= LocalPlayer then
+            if not teamCheck or player.Team ~= LocalPlayer.Team then
+                return true
+            end
+        end
+    end
+    return false
+end
+
+-- Fire hold simulation (PC/Mobile compatible)
+local function fireHold(holding)
+    if holding and not isFiring then
+        isFiring = true
+        mouse1press()
+    elseif not holding and isFiring then
+        isFiring = false
+        mouse1release()
+    end
+end
+
+-- Main trigger loop
+function triggerBotLoop()
+    while triggerBotEnabled do
+        local hit = getRaycastTarget()
+        fireHold(hit)
+        task.wait(triggerDelay)
+    end
+    fireHold(false) -- stop firing when disabled
+end
+
+-- Declare variables used in callbacks
+local triggerBotEnabled = false
+local triggerDelay = 0.1
+
+-- Toggle for TriggerBot
+local Toggle = Tab:CreateToggle({
+    Name = "TriggerBot",
+    Description = "Auto-shoots when aiming at enemies",
+    CurrentValue = false,
+    Callback = function(Value)
+        triggerBotEnabled = Value
+        if Value then
+            coroutine.wrap(triggerBotLoop)()
+        end
+    end
+})
+
+-- Slider for adjusting delay
+local Slider = Tab:CreateSlider({
+    Name = "TriggerBot Delay",
+    Description = "Lower = faster shooting",
+    Range = {0.05, 1.0}, -- Delay range from 0.05 to 1.0 seconds
+    Increment = 0.05,
+    CurrentValue = 0.1,
+    Callback = function(Value)
+        triggerDelay = Value
+    end
+})
 
 local Tab = Window:CreateTab({
     Name = "Hurtbox Expansion",
@@ -2873,20 +2511,6 @@ local Label = Tab:CreateLabel({
 	Style = 2 -- Luna Labels Have 3 Styles : A Basic Label, A Green Information Label and A Red Warning Label. Look At The Following Image For More Details
 })
 
-local Toggle = Tab:CreateToggle({
-	Name = "TpKill",
-	Description = "Teleports above a random enemy. Changes when they die.",
-	CurrentValue = false,
-	Callback = function(Value)
-		if Value then
-			startTeleporting()
-		else
-			stopTeleporting()
-		end
-	end
-}, "tpkillToggle")
-
-
 local Button = Tab:CreateButton({
 	Name = "InstantKill",
 	Description = "Needs a sword for it to work", -- Creates A Description For Users to know what the button does (looks bad if you use it all the time),
@@ -2900,15 +2524,6 @@ local Button = Tab:CreateButton({
 	Description = "Needs a sword/gun for it to work", -- Creates A Description For Users to know what the button does (looks bad if you use it all the time),
     	Callback = function()
          loadstring(game:HttpGet("https://raw.githubusercontent.com/OBFhm5650lol/2Loopkillsbnensnsns3838/refs/heads/main/Lkobf", true))()
-    	end
-})
-
-
-local Button = Tab:CreateButton({
-	Name = "infoViewer",
-	Description = "''i got ur IP address''", -- Creates A Description For Users to know what the button does (looks bad if you use it all the time),
-    	Callback = function()
-         loadstring(game:HttpGet("https://raw.githubusercontent.com/randomstring0/Qwerty/refs/heads/main/qwerty31.lua"))()
     	end
 })
 
@@ -2970,19 +2585,26 @@ local Button = Tab:CreateButton({
 
 local Toggle = Tab:CreateToggle({
     Name = "Anti-AFK",
-    Description = "Prevents you from being kicked for inactivity",
+    Description = "Prevents you from being kicked from idle by using (wasd)",
     CurrentValue = false,
     Callback = function(Value)
+        local vim = game:GetService("VirtualInputManager")
+
         if Value then
-            getgenv().antiAFKConnection = game:GetService("Players").LocalPlayer.Idled:Connect(function()
-                game:GetService("VirtualUser"):Button2Down(Vector2.new(0,0), workspace.CurrentCamera.CFrame)
-                task.wait(1)
-                game:GetService("VirtualUser"):Button2Up(Vector2.new(0,0), workspace.CurrentCamera.CFrame)
+            getgenv().antiAFKRunning = true
+            task.spawn(function()
+                while getgenv().antiAFKRunning do
+                    for _, key in ipairs({"W", "A", "S", "D"}) do
+                        vim:SendKeyEvent(true, Enum.KeyCode[key], false, game)
+                        task.wait(0.2)
+                        vim:SendKeyEvent(false, Enum.KeyCode[key], false, game)
+                        task.wait(0.2)
+                    end
+                    task.wait(1080)
+                end
             end)
         else
-            if getgenv().antiAFKConnection then
-                getgenv().antiAFKConnection:Disconnect()
-            end
+            getgenv().antiAFKRunning = false
         end
     end
 }, "AAToggle")
@@ -3008,7 +2630,7 @@ Tab:CreateDivider()
 
 local Paragraph = Tab:CreateParagraph({
 	Title = "[ UpdateLog ]",
-	Text = "Fixed Memory Cleaner Error | Organized Services For Performance | Bugs Fixed 2"
+	Text = "Added Aimlock 360 button | Fixed Anti-Afk | Bugs Fixed 16"
 })
 
 Luna:Notification({ 
