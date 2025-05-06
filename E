@@ -12,9 +12,12 @@ local Players = game:GetService("Players")
 local LocalPlayer = Players.LocalPlayer
 local RunService = game:GetService("RunService")
 local Teams = game:GetService("Teams")
-local TPService = game:GetService("TeleportService")
 local HttpService = game:GetService("HttpService")
 local Players = game:GetService("Players")
+local Players = game:GetService("Players")
+local LocalPlayer = Players.LocalPlayer
+local RunService = game:GetService("RunService")
+local Workspace = game:GetService("Workspace")
 
 
 -- StoredVariables
@@ -564,7 +567,9 @@ local function applyHitbox(character)
     
     if hitboxType == "Both" or hitboxType == "Only Head" then
         local head = character:FindFirstChild("Head")
-        applyToPart(head)
+        if head then
+            applyToPart(head)
+        end
     end
     
     -- For R15, adjust other parts if "Both" is selected
@@ -1242,7 +1247,7 @@ queueNotification("Made By Hmmm5650", "Script Started", 3, Color3.fromRGB(161, 1
 local Luna = loadstring(game:HttpGet("https://raw.githubusercontent.com/Nebula-Softworks/Luna-Interface-Suite/refs/heads/main/source.lua", true))()
 local Window = Luna:CreateWindow({
     Name = "SilverWare🍴",
-    Subtitle = "(v1.5) [ Only For Mobile ] ",
+    Subtitle = "(v1.6) [ Only For Mobile ] ",
     LogoID = "98445694743887",
     LoadingEnabled = false,
     LoadingTitle = "Starting SilverWare🍴",
@@ -1615,7 +1620,7 @@ local Tab = Window:CreateTab({
     Name = "Aimlock",
     Icon = "gps_fixed",
     ImageSource = "Material",
-    ShowTitle = true -- This will determine whether the big header text in the tab will show
+    ShowTitle = true
 })
 
 local Toggle = Tab:CreateToggle({
@@ -1636,8 +1641,9 @@ local Toggle = Tab:CreateToggle({
                     MaxDistance = 1000,
                     TargetColor = Color3.fromRGB(255, 0, 0),
                     TargetTransparency = 0.7,
-                    HighlightTarget = false, -- Added highlight toggle state
-                    CurrentHighlight = nil  -- Track current highlighted target
+                    HighlightTarget = false,
+                    CurrentHighlight = nil,
+                    Enable360 = false
                 }
             }
         end
@@ -1658,12 +1664,9 @@ local Toggle = Tab:CreateToggle({
                 -- Create UI elements
                 local screenGui = Instance.new("ScreenGui")
                 screenGui.Name = "AimLockUiLuau"
-                screenGui.IgnoreGuiInset = true -- This is the key line for mobile centering
+                screenGui.IgnoreGuiInset = true
                 screenGui.ResetOnSpawn = false
-                screenGui.Parent = localPlayer:WaitForChild("PlayerGui")
                 screenGui.Parent = playerGui
-                screenGui.ResetOnSpawn = false
-                screenGui.Name = "AimLockUiLuau"
                 _G.AimlockUI.ScreenGui = screenGui
 
                 -- Control panel
@@ -1719,7 +1722,6 @@ local Toggle = Tab:CreateToggle({
                 local function highlightPlayer(character, enable)
                     if not character then return end
                     
-                    -- Remove existing highlight if any
                     if _G.AimlockUI.AimAssist.CurrentHighlight and _G.AimlockUI.AimAssist.CurrentHighlight.Parent then
                         local existingHighlight = _G.AimlockUI.AimAssist.CurrentHighlight:FindFirstChild("AimlockHighlight")
                         if existingHighlight then
@@ -1728,7 +1730,6 @@ local Toggle = Tab:CreateToggle({
                     end
                     
                     if enable then
-                        -- Create new highlight
                         local highlight = Instance.new("Highlight")
                         highlight.Name = "AimlockHighlight"
                         highlight.FillColor = Color3.fromRGB(255, 0, 0)
@@ -1737,7 +1738,6 @@ local Toggle = Tab:CreateToggle({
                         highlight.OutlineTransparency = 0
                         highlight.Parent = character
                         
-                        -- Track current highlight
                         _G.AimlockUI.AimAssist.CurrentHighlight = character
                     else
                         _G.AimlockUI.AimAssist.CurrentHighlight = nil
@@ -1745,22 +1745,15 @@ local Toggle = Tab:CreateToggle({
                 end
 
                 -- Toggle functionality
-                local aimAssistActive = false
-                local smoothness = _G.AimlockUI.AimAssist.Smoothness
-                local maxDistance = _G.AimlockUI.AimAssist.MaxDistance
-                local fovSize = _G.AimlockUI.AimAssist.FOVSize
-
                 local function updateToggle()
-                    aimAssistActive = _G.AimlockUI.AimAssist.Active
-                    outline.Enabled = aimAssistActive
-                    toggleButton.Text = aimAssistActive and "AimLock: ON" or "AimLock: OFF"
+                    outline.Enabled = _G.AimlockUI.AimAssist.Active
+                    toggleButton.Text = _G.AimlockUI.AimAssist.Active and "AimLock: ON" or "AimLock: OFF"
                     
-                    -- Visual feedback
                     local tweenInfo = TweenInfo.new(0.2, Enum.EasingStyle.Quad, Enum.EasingDirection.Out)
                     local tween = TweenService:Create(
                         controlPanel,
                         tweenInfo,
-                        {BackgroundColor3 = aimAssistActive and Color3.fromRGB(40, 40, 40) or Color3.fromRGB(30, 30, 30)}
+                        {BackgroundColor3 = _G.AimlockUI.AimAssist.Active and Color3.fromRGB(40, 40, 40) or Color3.fromRGB(30, 30, 30)}
                     )
                     tween:Play()
                 end
@@ -1780,7 +1773,7 @@ local Toggle = Tab:CreateToggle({
                         local playerTeam = player.Team
                         return localTeam ~= nil and playerTeam ~= nil and localTeam ~= playerTeam
                     else
-                        return true -- Assume all players are enemies in non-team games
+                        return true
                     end
                 end
 
@@ -1793,7 +1786,7 @@ local Toggle = Tab:CreateToggle({
                     if not rootPart then return false end
                     
                     local direction = (targetPosition - rootPart.Position).Unit
-                    local ray = Ray.new(rootPart.Position + direction * 2, direction * maxDistance)
+                    local ray = Ray.new(rootPart.Position + direction * 2, direction * _G.AimlockUI.AimAssist.MaxDistance)
                     
                     local ignoreList = {localCharacter}
                     local hitPart, hitPosition = workspace:FindPartOnRayWithIgnoreList(ray, ignoreList)
@@ -1805,7 +1798,7 @@ local Toggle = Tab:CreateToggle({
                     return false
                 end
 
-                -- Then modify the findBestTarget function in the aimlock code (replace the existing one):
+                -- Target finding function with proper FOV checking
                 local function findBestTarget()
                     local bestTarget = nil
                     local closestDistance = math.huge
@@ -1820,7 +1813,8 @@ local Toggle = Tab:CreateToggle({
                     if not camera then return nil end
                     
                     local targetCenter = targetIndicator.AbsolutePosition + (targetIndicator.AbsoluteSize / 2)
-                    local targetRadius = fovSize / 2
+                    local targetRadius = _G.AimlockUI.AimAssist.FOVSize / 2
+                    
                     for _, player in pairs(Players:GetPlayers()) do
                         if isEnemyForAimAssist(player) and player.Character then
                             local character = player.Character
@@ -1833,10 +1827,8 @@ local Toggle = Tab:CreateToggle({
                             if enemyRoot then
                                 local distanceFromPlayer = (rootPart.Position - enemyRoot.Position).Magnitude
                                 
-                                -- Modified for 360 aimlock
                                 if _G.AimlockUI.AimAssist.Enable360 then
-                                    -- 360 mode - check distance only
-                                    if distanceFromPlayer <= maxDistance 
+                                    if distanceFromPlayer <= _G.AimlockUI.AimAssist.MaxDistance 
                                        and distanceFromPlayer < closestDistance 
                                        and isVisible(enemyRoot.Position, character) then
                                         
@@ -1849,13 +1841,12 @@ local Toggle = Tab:CreateToggle({
                                         }
                                     end
                                 else
-                                    -- Normal mode - check screen position
                                     local screenPosition, onScreen = camera:WorldToScreenPoint(enemyRoot.Position)
                                     if onScreen then
                                         local distanceFromCenter = (Vector2.new(screenPosition.X, screenPosition.Y) - targetCenter).Magnitude
                                         
                                         if distanceFromCenter <= targetRadius 
-                                           and distanceFromPlayer <= maxDistance 
+                                           and distanceFromPlayer <= _G.AimlockUI.AimAssist.MaxDistance 
                                            and distanceFromCenter < closestDistance 
                                            and isVisible(enemyRoot.Position, character) then
                                             
@@ -1885,38 +1876,31 @@ local Toggle = Tab:CreateToggle({
                         if target and target.root then
                             local camera = workspace.CurrentCamera
                             if camera then
-                                -- Prioritize head if available
                                 local targetPosition = target.head and target.head.Position or target.root.Position
                                 local cameraPosition = camera.CFrame.Position
                                 local targetCFrame = CFrame.new(cameraPosition, targetPosition)
                                 
-                                -- Apply smoothness only if it's less than 1 (0.99 or below)
                                 local lerpValue = _G.AimlockUI.AimAssist.Smoothness
                                 if lerpValue >= 1 then
-                                    lerpValue = 1 -- Force instant lock if smoothness is 1
+                                    lerpValue = 1
                                 end
                                 
                                 camera.CFrame = camera.CFrame:Lerp(targetCFrame, lerpValue)
                                 
-                                -- Visual feedback
                                 targetOutline.Color = Color3.fromRGB(0, 255, 0)
                                 
-                                -- Highlight the target if enabled
                                 if _G.AimlockUI.AimAssist.HighlightTarget then
                                     highlightPlayer(target.character, true)
                                 end
                             end
                         else
-                            -- Reset visual feedback when no target
                             targetOutline.Color = _G.AimlockUI.AimAssist.TargetColor
                             
-                            -- Remove highlight if no target
                             if _G.AimlockUI.AimAssist.HighlightTarget then
                                 highlightPlayer(_G.AimlockUI.AimAssist.CurrentHighlight, false)
                             end
                         end
                     else
-                        -- Remove highlight when aimlock is inactive
                         if _G.AimlockUI.AimAssist.HighlightTarget and _G.AimlockUI.AimAssist.CurrentHighlight then
                             highlightPlayer(_G.AimlockUI.AimAssist.CurrentHighlight, false)
                         end
@@ -1933,8 +1917,6 @@ local Toggle = Tab:CreateToggle({
                         isDragging = true
                         dragStartPosition = input.Position
                         dragStartOffset = controlPanel.Position
-                        
-                        -- Visual feedback
                         controlPanel.BackgroundTransparency = 0.2
                     end
                 end)
@@ -1965,24 +1947,21 @@ local Toggle = Tab:CreateToggle({
                     end
                 end)
 
-                -- Store connection for cleanup
+                -- Store references
                 _G.AimlockUI.AimAssist.Connection = aimAssistConnection
                 _G.AimlockUI.AimAssist.TargetIndicator = targetIndicator
                 _G.AimlockUI.AimAssist.TargetOutline = targetOutline
                 _G.AimlockUI.AimAssist.UpdateToggle = updateToggle
                 _G.AimlockUI.AimAssist.HighlightPlayer = highlightPlayer
             else
-                -- If GUI exists but is hidden, show it
                 _G.AimlockUI.ScreenGui.Enabled = true
                 _G.AimlockUI.AimAssist.UpdateToggle()
             end
         else
-            -- Hide the GUI when toggle is off
             if _G.AimlockUI.ScreenGui then
                 _G.AimlockUI.ScreenGui.Enabled = false
             end
             
-            -- Remove any existing highlight when toggled off
             if _G.AimlockUI and _G.AimlockUI.AimAssist and _G.AimlockUI.AimAssist.CurrentHighlight then
                 _G.AimlockUI.AimAssist.HighlightPlayer(_G.AimlockUI.AimAssist.CurrentHighlight, false)
             end
@@ -1992,12 +1971,11 @@ local Toggle = Tab:CreateToggle({
 
 local Toggle = Tab:CreateToggle({
     Name = "360 Aimlock",
-    Description = "aimlock in all directions less legit & precise but safer.",
+    Description = "Aimlock in all directions (less precise but safer)",
     CurrentValue = false,
     Callback = function(Value)
         if _G.AimlockUI then
             _G.AimlockUI.AimAssist.Enable360 = Value
-            -- Update the target finding logic if aimlock is active
             if _G.AimlockUI.AimAssist.Active then
                 _G.AimlockUI.AimAssist.UpdateToggle()
             end
@@ -2018,7 +1996,6 @@ local HighlightToggle = Tab:CreateToggle({
     end
 }, "HighlightTargetToggle")
 
--- Input for changing aimlock circle size
 local Input1 = Tab:CreateInput({
     Name = "Fov Size",
     Description = "Circle size (10-1000)",
@@ -2040,7 +2017,6 @@ local Input1 = Tab:CreateInput({
     end
 }, "Input1")
 
--- Input for changing aimlock circle transparency
 local Input2 = Tab:CreateInput({
     Name = "Fov Transparency",
     Description = "0-1 (0 = solid, 1 = invisible)",
@@ -2056,14 +2032,13 @@ local Input2 = Tab:CreateInput({
                 _G.AimlockUI.AimAssist.TargetTransparency = transparency
                 if _G.AimlockUI.AimAssist.TargetOutline then
                     _G.AimlockUI.AimAssist.TargetOutline.Transparency = transparency
-                    _G.AimlockUI.AimAssist.TargetOutline.Enabled = transparency < 1 -- Disable if fully transparent
+                    _G.AimlockUI.AimAssist.TargetOutline.Enabled = transparency < 1
                 end
             end
         end
     end
 }, "Input2")
 
--- Input for changing aimlock strength
 local Input3 = Tab:CreateInput({
     Name = "Aimlock Strength",
     Description = "0.1-1 (1 = instant lock)",
@@ -2084,7 +2059,6 @@ local Input3 = Tab:CreateInput({
 
 Tab:CreateDivider()
 
--- Color picker for changing aimlock circle color
 local ColorPicker = Tab:CreateColorPicker({
     Name = "FovColor",
     Color = _G.AimlockUI and _G.AimlockUI.AimAssist.TargetColor or Color3.fromRGB(255, 0, 0),
@@ -2372,6 +2346,44 @@ local Input = Tab:CreateInput({
     end
 }, "hbetransparencyInput")
 
+local headHitboxInput = nil
+local headHitboxToggle = Tab:CreateToggle({
+    Name = "Expand Only Head",
+    Description = nil,
+    CurrentValue = false,
+    Callback = function(Value)
+        hitboxType = Value and "Only Head" or "Both"
+        toggleHitboxes(hitboxEnabled)
+        
+        -- Show/hide the input field based on the toggle state
+        if Value then
+            headHitboxInput = Tab:CreateInput({
+                Name = "Change Head Hitbox Size",
+                Description = nil,
+                PlaceholderText = "Enter size (e.g., 5)",
+                CurrentValue = tostring(hitboxSize),
+                Numeric = true,
+                MaxCharacters = 4,
+                Enter = false,
+                Callback = function(Text)
+                    local newSize = tonumber(Text)
+                    if newSize and newSize > 0 then
+                        hitboxSize = newSize
+                        if hitboxEnabled then
+                            applyHitboxesToAllPlayers()
+                        end
+                    end
+                end
+            }, "HeadHitboxSizeInput")
+        else
+            if headHitboxInput then
+                headHitboxInput:Remove()
+                headHitboxInput = nil
+            end
+        end
+    end
+}, "HeadHitboxToggle")
+
 Tab:CreateDivider()
 
 local Dropdown = Tab:CreateDropdown({
@@ -2521,10 +2533,192 @@ local Toggle = Tab:CreateToggle({
 }, "AAToggle")
 
 local Tab = Window:CreateTab({
+	Name = "Farming",
+	Icon = "eco",
+	ImageSource = "Material",
+	ShowTitle = true -- This will determine whether the big header text in the tab will show
+})
+
+local Label = Tab:CreateLabel({
+	Text = "This May Get You Flinged",
+	Style = 2 -- Luna Labels Have 3 Styles : A Basic Label, A Green Information Label and A Red Warning Label. Look At The Following Image For More Details
+})
+
+local function isEnemy(player)
+    -- Check if teams are enabled in the game
+    if game:GetService("Teams"):GetTeams() ~= nil and #game:GetService("Teams"):GetTeams() > 0 then
+        -- Teams exist, check if player is on different team
+        return LocalPlayer.Team ~= nil and player.Team ~= nil and LocalPlayer.Team ~= player.Team
+    else
+        -- No teams, everyone is an enemy except local player
+        return player ~= LocalPlayer
+    end
+end
+
+-- Toggle for teleporting above enemies
+local aboveToggle = Tab:CreateToggle({
+    Name = "TpKill (Above)",
+    Description = "teleports you 20 studs above  enemies",
+    CurrentValue = false,
+    Callback = function(Value)
+        if Value then
+            -- Toggle on
+            aboveToggleLoop = RunService.Heartbeat:Connect(function()
+                local character = LocalPlayer.Character
+                if character and character:FindFirstChild("HumanoidRootPart") then
+                    local root = character.HumanoidRootPart
+                    
+                    -- Find the closest enemy
+                    local closestPlayer = nil
+                    local closestDistance = math.huge
+                    
+                    for _, player in ipairs(Players:GetPlayers()) do
+                        if isEnemy(player) and player.Character and player.Character:FindFirstChild("HumanoidRootPart") then
+                            local distance = (root.Position - player.Character.HumanoidRootPart.Position).Magnitude
+                            if distance < closestDistance then
+                                closestDistance = distance
+                                closestPlayer = player
+                            end
+                        end
+                    end
+                    
+                    -- Teleport above the closest enemy
+                    if closestPlayer then
+                        local enemyRoot = closestPlayer.Character.HumanoidRootPart
+                        root.CFrame = enemyRoot.CFrame + Vector3.new(0, 20, 0)
+                    end
+                end
+            end)
+        else
+            -- Toggle off
+            if aboveToggleLoop then
+                aboveToggleLoop:Disconnect()
+                aboveToggleLoop = nil
+            end
+        end
+    end
+}, "AboveToggle")
+
+-- Toggle for teleporting underground (under enemies)
+local underToggle = Tab:CreateToggle({
+    Name = "TpKill (Below)",
+    Description = "teleports you 6 studs below  enemies",
+    CurrentValue = false,
+    Callback = function(Value)
+        if Value then
+            -- Toggle on
+            underToggleLoop = RunService.Heartbeat:Connect(function()
+                local character = LocalPlayer.Character
+                if character and character:FindFirstChild("HumanoidRootPart") then
+                    local root = character.HumanoidRootPart
+                    
+                    -- Find the closest enemy (same logic as above)
+                    local closestPlayer = nil
+                    local closestDistance = math.huge
+                    
+                    for _, player in ipairs(Players:GetPlayers()) do
+                        if isEnemy(player) and player.Character and player.Character:FindFirstChild("HumanoidRootPart") then
+                            local distance = (root.Position - player.Character.HumanoidRootPart.Position).Magnitude
+                            if distance < closestDistance then
+                                closestDistance = distance
+                                closestPlayer = player
+                            end
+                        end
+                    end
+                    
+                    -- Teleport UNDER the closest enemy (6 studs below)
+                    if closestPlayer then
+                        local enemyRoot = closestPlayer.Character.HumanoidRootPart
+                        root.CFrame = enemyRoot.CFrame - Vector3.new(0, 6, 0)
+                    end
+                end
+            end)
+        else
+            -- Toggle off
+            if underToggleLoop then
+                underToggleLoop:Disconnect()
+                underToggleLoop = nil
+            end
+        end
+    end
+}, "UnderToggle")
+
+-- Toggle for teleporting behind enemies (with wall detection)
+local behindToggle = Tab:CreateToggle({
+    Name = "TpKill (Behind)",
+    Description = "teleports you 5 studs behind enemies",
+    CurrentValue = false,
+    Callback = function(Value)
+        if Value then
+            -- Toggle on
+            behindToggleLoop = RunService.Heartbeat:Connect(function()
+                local character = LocalPlayer.Character
+                if character and character:FindFirstChild("HumanoidRootPart") then
+                    local root = character.HumanoidRootPart
+                    
+                    -- Find the closest enemy
+                    local closestPlayer = nil
+                    local closestDistance = math.huge
+                    
+                    for _, player in ipairs(Players:GetPlayers()) do
+                        if isEnemy(player) and player.Character and player.Character:FindFirstChild("HumanoidRootPart") then
+                            local distance = (root.Position - player.Character.HumanoidRootPart.Position).Magnitude
+                            if distance < closestDistance then
+                                closestDistance = distance
+                                closestPlayer = player
+                            end
+                        end
+                    end
+                    
+                    if closestPlayer then
+                        local enemyRoot = closestPlayer.Character.HumanoidRootPart
+                        local enemyCFrame = enemyRoot.CFrame
+                        
+                        -- Calculate position 5 studs behind the enemy
+                        local behindPosition = enemyCFrame.Position - (enemyCFrame.LookVector * 5)
+                        
+                        -- Raycast to check for walls
+                        local raycastParams = RaycastParams.new()
+                        raycastParams.FilterDescendantsInstances = {character, closestPlayer.Character}
+                        raycastParams.FilterType = Enum.RaycastFilterType.Blacklist
+                        
+                        local raycastResult = Workspace:Raycast(
+                            enemyCFrame.Position,
+                            (behindPosition - enemyCFrame.Position),
+                            raycastParams
+                        )
+                        
+                        -- Adjust position if wall is detected
+                        if raycastResult then
+                            -- Move slightly in front of the wall
+                            behindPosition = raycastResult.Position + (enemyCFrame.LookVector * 1.5)
+                        end
+                        
+                        -- Teleport behind the enemy (with possible wall adjustment)
+                        root.CFrame = CFrame.new(behindPosition, enemyCFrame.Position)
+                    end
+                end
+            end)
+        else
+            -- Toggle off
+            if behindToggleLoop then
+                behindToggleLoop:Disconnect()
+                behindToggleLoop = nil
+            end
+        end
+    end
+}, "BehindToggle")
+
+local Tab = Window:CreateTab({
 	Name = "Info",
 	Icon = "info",
 	ImageSource = "Material",
 	ShowTitle = true -- This will determine whether the big header text in the tab will show
+})
+
+local Label = Tab:CreateLabel({
+	Text = "Go Sub To My YT Channel @hmmm5650",
+	Style = 1 -- Luna Labels Have 3 Styles : A Basic Label, A Green Information Label and A Red Warning Label. Look At The Following Image For More Details
 })
 
 local Label = Tab:CreateLabel({
@@ -2534,14 +2728,14 @@ local Label = Tab:CreateLabel({
 
 local Paragraph = Tab:CreateParagraph({
 	Title = "[ About ]",
-	Text = "SilverWare Is a free Exploit with no KeySystems and it has so many features enough to destroy you're Victims"
+	Text = "SilverWare Is a completely free Exploit with no KeySystems and it has so many features enough to destroy you're Victims"
 })
 
 Tab:CreateDivider()
 
 local Paragraph = Tab:CreateParagraph({
 	Title = "[ UpdateLog ]",
-	Text = "Added Aimlock 360 button | Fixed Anti-Afk | Bugs Fixed 16"
+	Text = "Added A New Tab Called ''Farming'' | Made The Hitbox Expansion Get More Headshots Easily  | Fixed Aimlock Fov Size Not Working Tracking Properly | Bugs Fixed 1"
 })
 
 Luna:Notification({ 
