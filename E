@@ -1247,7 +1247,7 @@ queueNotification("Made By Hmmm5650", "Script Started", 3, Color3.fromRGB(161, 1
 local Luna = loadstring(game:HttpGet("https://raw.githubusercontent.com/Nebula-Softworks/Luna-Interface-Suite/refs/heads/main/source.lua", true))()
 local Window = Luna:CreateWindow({
     Name = "SilverWare🍴",
-    Subtitle = "(v1.6) [ Only For Mobile ] ",
+    Subtitle = "(v1.7) [ Only For Mobile ] ", -- VZ
     LogoID = "98445694743887",
     LoadingEnabled = false,
     LoadingTitle = "Starting SilverWare🍴",
@@ -1998,7 +1998,7 @@ local HighlightToggle = Tab:CreateToggle({
 
 local Input1 = Tab:CreateInput({
     Name = "Fov Size",
-    Description = "Circle size (10-1000)",
+    Description = "Circle size (20-999)",
     PlaceholderText = tostring(_G.AimlockUI and _G.AimlockUI.AimAssist.FOVSize or 150),
     CurrentValue = "",
     Numeric = true,
@@ -2346,7 +2346,6 @@ local Input = Tab:CreateInput({
     end
 }, "hbetransparencyInput")
 
-local headHitboxInput = nil
 local headHitboxToggle = Tab:CreateToggle({
     Name = "Expand Only Head",
     Description = nil,
@@ -2354,51 +2353,10 @@ local headHitboxToggle = Tab:CreateToggle({
     Callback = function(Value)
         hitboxType = Value and "Only Head" or "Both"
         toggleHitboxes(hitboxEnabled)
-        
-        -- Show/hide the input field based on the toggle state
-        if Value then
-            headHitboxInput = Tab:CreateInput({
-                Name = "Change Head Hitbox Size",
-                Description = nil,
-                PlaceholderText = "Enter size (e.g., 5)",
-                CurrentValue = tostring(hitboxSize),
-                Numeric = true,
-                MaxCharacters = 4,
-                Enter = false,
-                Callback = function(Text)
-                    local newSize = tonumber(Text)
-                    if newSize and newSize > 0 then
-                        hitboxSize = newSize
-                        if hitboxEnabled then
-                            applyHitboxesToAllPlayers()
-                        end
-                    end
-                end
-            }, "HeadHitboxSizeInput")
-        else
-            if headHitboxInput then
-                headHitboxInput:Remove()
-                headHitboxInput = nil
-            end
-        end
     end
 }, "HeadHitboxToggle")
 
 Tab:CreateDivider()
-
-local Dropdown = Tab:CreateDropdown({
-    Name = "Select Hitbox Type",
-    Description = nil,
-    Options = {"Both", "Only Hrp", "Only Head"},
-    CurrentOption = {"Both"},
-    MultipleOptions = false,
-    Callback = function(Option)
-        hitboxType = Option
-        if hitboxEnabled then
-            applyHitboxesToAllPlayers()
-        end
-    end
-}, "HbeSeleDropdown")
 
 local ColorPicker = Tab:CreateColorPicker({
     Name = "Hitbox Color",
@@ -2558,7 +2516,7 @@ end
 -- Toggle for teleporting above enemies
 local aboveToggle = Tab:CreateToggle({
     Name = "TpKill (Above)",
-    Description = "teleports you 20 studs above  enemies",
+    Description = "teleports you 20 studs above enemies",
     CurrentValue = false,
     Callback = function(Value)
         if Value then
@@ -2602,7 +2560,7 @@ local aboveToggle = Tab:CreateToggle({
 -- Toggle for teleporting underground (under enemies)
 local underToggle = Tab:CreateToggle({
     Name = "TpKill (Below)",
-    Description = "teleports you 6 studs below  enemies",
+    Description = "teleports you 6 studs below enemies",
     CurrentValue = false,
     Callback = function(Value)
         if Value then
@@ -2735,7 +2693,7 @@ Tab:CreateDivider()
 
 local Paragraph = Tab:CreateParagraph({
 	Title = "[ UpdateLog ]",
-	Text = "Added A New Tab Called ''Farming'' | Made The Hitbox Expansion Get More Headshots Easily  | Fixed Aimlock Fov Size Not Working Tracking Properly | Bugs Fixed 1"
+	Text = "Fixed Callback Errors In The ''Hitbox Expansion'' Tab | Fixed Callback Errors In The ''Aimlock'' Tab | Bugs Fixed 3"
 })
 
 Luna:Notification({ 
