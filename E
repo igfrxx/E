@@ -18,7 +18,8 @@ local Players = game:GetService("Players")
 local LocalPlayer = Players.LocalPlayer
 local RunService = game:GetService("RunService")
 local Workspace = game:GetService("Workspace")
-
+local Players = game:GetService("Players")
+local RunService = game:GetService("RunService")
 
 -- StoredVariables
 
@@ -1247,7 +1248,7 @@ queueNotification("Made By Hmmm5650", "Script Started", 3, Color3.fromRGB(161, 1
 local Luna = loadstring(game:HttpGet("https://raw.githubusercontent.com/Nebula-Softworks/Luna-Interface-Suite/refs/heads/main/source.lua", true))()
 local Window = Luna:CreateWindow({
     Name = "SilverWare🍴",
-    Subtitle = "(v1.7) [ Only For Mobile ] ", -- VZ
+    Subtitle = "(v1.8) [ Only For Mobile ] ", -- VZ
     LogoID = "98445694743887",
     LoadingEnabled = false,
     LoadingTitle = "Starting SilverWare🍴",
@@ -2408,6 +2409,278 @@ local Button = Tab:CreateButton({
     	end
 })
 
+
+local Tab = Window:CreateTab({
+	Name = "Protection",
+	Icon = "shield",
+	ImageSource = "Material",
+	ShowTitle = true -- This will determine whether the big header text in the tab will show
+})
+
+local Toggle = Tab:CreateToggle({
+    Name = "Delete AntiCheats",
+    Description = "Aggressively removes AntiCheat systems with detection bypass",
+    CurrentValue = false,
+    Callback = function(Value)
+        if Value then
+            -- Bypass technique: Delay execution to avoid detection
+            task.wait(math.random(0.1, 0.5))
+            
+            local success, err = pcall(function()
+                -- Extended list of anti-cheat identifiers
+                local antiCheatNames = {
+                    "AntiCheat", "AntiExploitScript", "AC_", "SecurityModule",
+                    "AntiHack", "ExploitProtection", "CheatDetection", "HackShield"
+                }
+                
+                -- Check for common obfuscated patterns
+                local patternChecks = {
+                    "ac$", "security_", "shield", "detect"
+                }
+                
+                local deletedCount = 0
+                
+                -- First pass: Direct name matches
+                for _, obj in ipairs(game:GetDescendants()) do
+                    if obj:IsA("ModuleScript") or obj:IsA("Script") or obj:IsA("LocalScript") then
+                        for _, name in ipairs(antiCheatNames) do
+                            if obj.Name:lower():find(name:lower(), 1, true) then
+                                obj:Destroy()
+                                deletedCount += 1
+                                break
+                            end
+                        end
+                    end
+                end
+                
+                -- Second pass: Pattern matching
+                for _, obj in ipairs(game:GetDescendants()) do
+                    if obj:IsA("ModuleScript") or obj:IsA("Script") or obj:IsA("LocalScript") then
+                        for _, pattern in ipairs(patternChecks) do
+                            if obj.Name:lower():match(pattern) then
+                                obj:Destroy()
+                                deletedCount += 1
+                                break
+                            end
+                        end
+                    end
+                end
+                
+                -- Check for common anti-cheat containers
+                local suspectFolders = {"Security", "AntiCheat", "Protection"}
+                for _, folderName in ipairs(suspectFolders) do
+                    local folder = game:FindFirstChild(folderName)
+                    if folder and folder:IsA("Folder") then
+                        folder:Destroy()
+                        deletedCount += 1
+                    end
+                end
+                
+                -- Post-deletion cleanup
+                if deletedCount > 0 then
+                    -- Force garbage collection to clean up
+                    for i = 1, 3 do task.wait() collectgarbage() end
+                    
+                    -- Return success message
+                    return ("Successfully removed %d anti-cheat components"):format(deletedCount)
+                else
+                    return "No anti-cheat components detected"
+                end
+            end)
+            
+            if success then
+                print(err) -- prints the success message
+            else
+                warn("Anti-cheat removal failed: " .. err)
+            end
+        else
+            print("Anti-cheat deletion disabled")
+        end
+    end
+}, "DeleteACToggle")
+
+local LocalPlayer = Players.LocalPlayer
+local Character = LocalPlayer.Character or LocalPlayer.CharacterAdded:Wait()
+local HumanoidRootPart = Character:WaitForChild("HumanoidRootPart")
+
+local teleportDistance = 5 -- How far to teleport when detected
+local detectionAngle = 5 -- Degrees from center to consider as "aiming directly"
+local checkInterval = 0.1 -- How often to check (seconds)
+
+-- Function to check if a player is on the enemy team
+local function isEnemy(player)
+    -- Skip if it's the local player
+    if player == LocalPlayer then return false end
+    
+    -- Check if the game has teams
+    if not game:GetService("Teams"):FindFirstChildOfClass("Team") then
+        return true -- If no teams, consider everyone an enemy
+    end
+    
+    -- Check if either player is not on a team
+    if not LocalPlayer.Team or not player.Team then
+        return true -- No team = enemy
+    end
+    
+    -- Compare teams
+    return LocalPlayer.Team ~= player.Team
+end
+
+local function isAimingAtMe(player)
+    if not isEnemy(player) then return false end -- Skip teammates
+    if not player.Character then return false end
+    
+    local character = player.Character
+    local humanoidRootPart = character:FindFirstChild("HumanoidRootPart")
+    local head = character:FindFirstChild("Head")
+    
+    if not humanoidRootPart or not head then return false end
+    
+    -- Get camera direction
+    local camera = workspace.CurrentCamera
+    local cameraCFrame = camera:GetRenderCFrame()
+    local cameraLookVector = cameraCFrame.LookVector
+    
+    -- Vector from other player's head to my HRP
+    local toMe = (HumanoidRootPart.Position - head.Position).Unit
+    
+    -- Calculate angle between their look vector and vector to me
+    local angle = math.deg(math.acos(cameraLookVector:Dot(toMe)))
+    
+    return angle <= detectionAngle
+end
+
+local function checkPlayers()
+    for _, player in ipairs(Players:GetPlayers()) do
+        if isAimingAtMe(player) then
+            -- Calculate new position slightly away from current position
+            local randomOffset = Vector3.new(
+                (math.random() - 0.5) * 2 * teleportDistance,
+                0,
+                (math.random() - 0.5) * 2 * teleportDistance
+            )
+            
+            HumanoidRootPart.CFrame = HumanoidRootPart.CFrame + randomOffset
+            break -- Teleport once per check
+        end
+    end
+end
+
+local connection
+local Toggle = Tab:CreateToggle({
+    Name = "Anti-Aim",
+    Description = "Teleports when enemies aim at you",
+    CurrentValue = false,
+    Callback = function(Value)
+        if Value then
+            -- Initialize character references when toggled on
+            Character = LocalPlayer.Character or LocalPlayer.CharacterAdded:Wait()
+            HumanoidRootPart = Character:WaitForChild("HumanoidRootPart")
+            
+            -- Set up the checking loop
+            connection = RunService.Heartbeat:Connect(function(deltaTime)
+                checkPlayers()
+            end)
+        else
+            -- Disconnect when toggled off
+            if connection then
+                connection:Disconnect()
+                connection = nil
+            end
+        end
+    end
+}, "AntiAimToggle")
+
+local Toggle = Tab:CreateToggle({
+    Name = "Anti-AFK",
+    Description = "Prevents you from being kicked from idle by using (wasd)",
+    CurrentValue = false,
+    Callback = function(Value)
+        local vim = game:GetService("VirtualInputManager")
+
+        if Value then
+            getgenv().antiAFKRunning = true
+            task.spawn(function()
+                while getgenv().antiAFKRunning do
+                    for _, key in ipairs({"W", "A", "S", "D"}) do
+                        vim:SendKeyEvent(true, Enum.KeyCode[key], false, game)
+                        task.wait(0.2)
+                        vim:SendKeyEvent(false, Enum.KeyCode[key], false, game)
+                        task.wait(0.2)
+                    end
+                    task.wait(1080)
+                end
+            end)
+        else
+            getgenv().antiAFKRunning = false
+        end
+    end
+}, "AAToggle")
+
+local Toggle = Tab:CreateToggle({
+	Name = "VoidProtection",
+	Description = nil,
+	CurrentValue = false,
+	Callback = function(Value)
+		if Value then
+			VoidProtectionOn()
+		else
+			VoidProtectionOff()
+		end
+	end
+}, "Toggle")
+
+-- Spinbot Variable
+local spinbotEnabled = false
+local spinSpeed = 50 -- Default speed (adjustable via slider)
+local spinConnection = nil
+
+-- Spinbot Function
+local function updateSpinbot()
+    if spinbotEnabled then
+        local character = game.Players.LocalPlayer.Character
+        if character and character:FindFirstChild("HumanoidRootPart") then
+            local root = character.HumanoidRootPart
+            root.CFrame = root.CFrame * CFrame.Angles(0, math.rad(spinSpeed), 0)
+        end
+    end
+end
+
+-- Spinbot Toggle
+local SpinbotToggle = Tab:CreateToggle({
+    Name = "Spinbot",
+    Description = "Makes your character spin (harder to hit)",
+    CurrentValue = false,
+    Callback = function(Value)
+        spinbotEnabled = Value
+        if Value then
+            -- Disconnect previous connection if it exists
+            if spinConnection then
+                spinConnection:Disconnect()
+            end
+            -- Create new connection
+            spinConnection = game:GetService("RunService").Heartbeat:Connect(updateSpinbot)
+        else
+            -- Disconnect when toggled off
+            if spinConnection then
+                spinConnection:Disconnect()
+                spinConnection = nil
+            end
+        end
+    end
+}, "SpinbotToggle")
+
+-- Spin Speed Slider
+local SpinSpeedSlider = Tab:CreateSlider({
+    Name = "Spin Speed",
+    Range = {1, 100}, -- Min: 1, Max: 100
+    Increment = 1, -- Adjustable in steps of 1
+    CurrentValue = spinSpeed, -- Default speed
+    Callback = function(Value)
+        spinSpeed = Value -- Updates spin speed in real-time
+    end
+}, "SpinSpeedSlider")
+
 local Tab = Window:CreateTab({
 	Name = "Admins",
 	Icon = "admin_panel_settings",
@@ -2464,31 +2737,40 @@ local Button = Tab:CreateButton({
     	end
 })
 
-local Toggle = Tab:CreateToggle({
-    Name = "Anti-AFK",
-    Description = "Prevents you from being kicked from idle by using (wasd)",
-    CurrentValue = false,
-    Callback = function(Value)
-        local vim = game:GetService("VirtualInputManager")
+local Button = Tab:CreateButton({
+	Name = "Bypass Status",
+	Description = "High SineWave Is Risky & Low Is Safe", -- Creates A Description For Users to know what the button does (looks bad if you use it all the time),
+    	Callback = function()
+         loadstring(game:HttpGet("https://raw.githubusercontent.com/OBFhm5650lol/Z/refs/heads/main/Z"))()
+    	end
+})
 
-        if Value then
-            getgenv().antiAFKRunning = true
-            task.spawn(function()
-                while getgenv().antiAFKRunning do
-                    for _, key in ipairs({"W", "A", "S", "D"}) do
-                        vim:SendKeyEvent(true, Enum.KeyCode[key], false, game)
-                        task.wait(0.2)
-                        vim:SendKeyEvent(false, Enum.KeyCode[key], false, game)
-                        task.wait(0.2)
-                    end
-                    task.wait(1080)
-                end
-            end)
-        else
-            getgenv().antiAFKRunning = false
-        end
-    end
-}, "AAToggle")
+Tab:CreateDivider()
+Tab:CreateSection("Sum cool scripts that I found from walmart")
+
+local Button = Tab:CreateButton({
+	Name = "Duckhub🐤 [Key]",
+	Description = "Hub", -- Creates A Description For Users to know what the button does (looks bad if you use it all the time),
+    	Callback = function()
+         loadstring(game:HttpGet('https://raw.githubusercontent.com/HexFG/duckhub/refs/heads/main/loader.lua'))()
+    	end
+})
+
+local Button = Tab:CreateButton({
+	Name = "TbaoHub🐶",
+	Description = "Grow A Garden", -- Creates A Description For Users to know what the button does (looks bad if you use it all the time),
+    	Callback = function()
+         loadstring(game:HttpGet("https://raw.githubusercontent.com/tbao143/game/refs/heads/main/TbaoHubGrowGarden"))()
+    	end
+})
+
+local Button = Tab:CreateButton({
+	Name = "SkullHub💀",
+	Description = "DeadRails", -- Creates A Description For Users to know what the button does (looks bad if you use it all the time),
+    	Callback = function()
+         loadstring(game:HttpGet('https://skullhub.xyz/loader.lua'))()
+    	end
+})
 
 local Tab = Window:CreateTab({
 	Name = "Farming",
@@ -2686,14 +2968,14 @@ local Label = Tab:CreateLabel({
 
 local Paragraph = Tab:CreateParagraph({
 	Title = "[ About ]",
-	Text = "SilverWare Is a completely free Exploit with no KeySystems and it has so many features enough to destroy you're Victims"
+	Text = "SilverWare Is a completely free Exploit and safe with no KeySystems and it has so many features enough to destroy you're Victims"
 })
 
 Tab:CreateDivider()
 
 local Paragraph = Tab:CreateParagraph({
 	Title = "[ UpdateLog ]",
-	Text = "Fixed Callback Errors In The ''Hitbox Expansion'' Tab | Fixed Callback Errors In The ''Aimlock'' Tab | Bugs Fixed 3"
+	Text = "Added More Stuff To The ''Misc'' Tab | Added The ''Protection'' Tab | Bugs Fixed 31"
 })
 
 Luna:Notification({ 
