@@ -2353,7 +2353,11 @@ local headHitboxToggle = Tab:CreateToggle({
     CurrentValue = false,
     Callback = function(Value)
         hitboxType = Value and "Only Head" or "Both"
-        toggleHitboxes(hitboxEnabled)
+        if hitboxEnabled then
+            resetHitboxesOnAllPlayers()
+            task.wait(0.1) -- Small delay to ensure everything resets
+            applyHitboxesToAllPlayers()
+        end
     end
 }, "HeadHitboxToggle")
 
@@ -2511,69 +2515,168 @@ local Button = Tab:CreateButton({
     	end
 })
 
+local Players = game:GetService("Players")
+local RunService = game:GetService("RunService")
+local Workspace = game:GetService("Workspace")
+
 local LocalPlayer = Players.LocalPlayer
 local Character = LocalPlayer.Character or LocalPlayer.CharacterAdded:Wait()
 local HumanoidRootPart = Character:WaitForChild("HumanoidRootPart")
 
-local teleportDistance = 5 -- How far to teleport when detected
-local detectionAngle = 5 -- Degrees from center to consider as "aiming directly"
-local checkInterval = 0.1 -- How often to check (seconds)
+local teleportDistance = 15 -- Increased distance for better evasion
+local detectionAngle = 30 -- Wider angle for better detection
+local checkInterval = 0.1
+local lastCheck = 0
+local raycastParams = RaycastParams.new()
+raycastParams.FilterDescendantsInstances = {Character}
+raycastParams.FilterType = Enum.RaycastFilterType.Blacklist
 
--- Function to check if a player is on the enemy team
+-- Improved enemy check
 local function isEnemy(player)
-    -- Skip if it's the local player
     if player == LocalPlayer then return false end
+    if not player.Character then return false end
     
-    -- Check if the game has teams
-    if not game:GetService("Teams"):FindFirstChildOfClass("Team") then
-        return true -- If no teams, consider everyone an enemy
-    end
+    -- Handle games without teams
+    local teams = game:GetService("Teams"):GetChildren()
+    if #teams == 0 then return true end
     
-    -- Check if either player is not on a team
+    -- Handle players not on teams
     if not LocalPlayer.Team or not player.Team then
-        return true -- No team = enemy
+        return true
     end
     
-    -- Compare teams
     return LocalPlayer.Team ~= player.Team
 end
 
+-- Fixed angle detection for all directions
 local function isAimingAtMe(player)
-    if not isEnemy(player) then return false end -- Skip teammates
+    if not isEnemy(player) then return false end
     if not player.Character then return false end
     
     local character = player.Character
-    local humanoidRootPart = character:FindFirstChild("HumanoidRootPart")
+    local humanoid = character:FindFirstChildOfClass("Humanoid")
     local head = character:FindFirstChild("Head")
     
-    if not humanoidRootPart or not head then return false end
+    if not humanoid or not head then return false end
     
-    -- Get camera direction
-    local camera = workspace.CurrentCamera
-    local cameraCFrame = camera:GetRenderCFrame()
+    -- Get camera information (works for both first and third person)
+    local camera = Workspace.CurrentCamera
+    local cameraCFrame = camera.CFrame
     local cameraLookVector = cameraCFrame.LookVector
     
-    -- Vector from other player's head to my HRP
-    local toMe = (HumanoidRootPart.Position - head.Position).Unit
+    -- Determine raycast origin (accounts for first/third person)
+    local raycastOrigin = head.Position
+    if player == LocalPlayer then
+        raycastOrigin = cameraCFrame.Position
+    end
     
-    -- Calculate angle between their look vector and vector to me
-    local angle = math.deg(math.acos(cameraLookVector:Dot(toMe)))
+    -- Vector from observer to local player
+    local toLocalPlayer = (HumanoidRootPart.Position - raycastOrigin)
+    local distance = toLocalPlayer.Magnitude
+    local directionToLocal = toLocalPlayer.Unit
     
-    return angle <= detectionAngle
+    -- Calculate angle between their look direction and direction to local player
+    local dotProduct = cameraLookVector:Dot(directionToLocal)
+    local angle = math.deg(math.acos(math.clamp(dotProduct, -1, 1)))
+    
+    -- Check if they're looking roughly in our direction
+    if angle > detectionAngle then return false end
+    
+    -- Perform raycast to verify line of sight
+    local raycastResult = Workspace:Raycast(
+        raycastOrigin,
+        directionToLocal * distance,
+        raycastParams
+    )
+    
+    if raycastResult then
+        local hitPart = raycastResult.Instance
+        if not hitPart:IsDescendantOf(Character) then
+            return false
+        end
+    end
+    
+    return true
 end
 
-local function checkPlayers()
+-- Improved teleport position calculation
+local function getTeleportPosition()
+    -- Get all enemy positions
+    local enemyPositions = {}
+    for _, player in ipairs(Players:GetPlayers()) do
+        if isEnemy(player) and player.Character then
+            local root = player.Character:FindFirstChild("HumanoidRootPart")
+            if root then
+                table.insert(enemyPositions, root.Position)
+            end
+        end
+    end
+    
+    -- Try to find a position away from all enemies
+    local bestPosition = nil
+    local bestScore = -math.huge
+    
+    for i = 1, 8 do -- Try 8 different directions
+        local angle = (i / 8) * math.pi * 2
+        local offset = Vector3.new(
+            math.cos(angle) * teleportDistance,
+            0,
+            math.sin(angle) * teleportDistance
+        )
+        local testPosition = HumanoidRootPart.Position + offset
+        
+        -- Raycast down to find ground
+        local groundRay = Workspace:Raycast(
+            testPosition + Vector3.new(0, 10, 0),
+            Vector3.new(0, -20, 0),
+            raycastParams
+        )
+        
+        if groundRay then
+            local groundPosition = groundRay.Position
+            
+            -- Score this position based on distance from enemies
+            local score = 0
+            for _, enemyPos in ipairs(enemyPositions) do
+                score = score + (groundPosition - enemyPos).Magnitude
+            end
+            
+            if score > bestScore then
+                bestScore = score
+                bestPosition = groundPosition
+            end
+        end
+    end
+    
+    return bestPosition or (HumanoidRootPart.CFrame + Vector3.new(
+        (math.random() - 0.5) * teleportDistance * 2,
+        0,
+        (math.random() - 0.5) * teleportDistance * 2
+    ))
+end
+
+local function checkPlayers(deltaTime)
+    lastCheck += deltaTime
+    if lastCheck < checkInterval then return end
+    lastCheck = 0
+    
+    -- Refresh character references
+    if not Character or not Character.Parent or not HumanoidRootPart or not HumanoidRootPart.Parent then
+        Character = LocalPlayer.Character
+        if not Character then return end
+        HumanoidRootPart = Character:WaitForChild("HumanoidRootPart")
+        raycastParams.FilterDescendantsInstances = {Character}
+    end
+    
     for _, player in ipairs(Players:GetPlayers()) do
         if isAimingAtMe(player) then
-            -- Calculate new position slightly away from current position
-            local randomOffset = Vector3.new(
-                (math.random() - 0.5) * 2 * teleportDistance,
-                0,
-                (math.random() - 0.5) * 2 * teleportDistance
-            )
-            
-            HumanoidRootPart.CFrame = HumanoidRootPart.CFrame + randomOffset
-            break -- Teleport once per check
+            local newPosition = getTeleportPosition()
+            if typeof(newPosition) == "Vector3" then
+                HumanoidRootPart.CFrame = CFrame.new(newPosition)
+            else
+                HumanoidRootPart.CFrame = newPosition
+            end
+            break
         end
     end
 end
@@ -2581,20 +2684,16 @@ end
 local connection
 local Toggle = Tab:CreateToggle({
     Name = "Anti-Aim",
-    Description = "Teleports when enemies aim at you",
+    Description = "Teleports when enemies aim at you from any direction",
     CurrentValue = false,
     Callback = function(Value)
         if Value then
-            -- Initialize character references when toggled on
             Character = LocalPlayer.Character or LocalPlayer.CharacterAdded:Wait()
             HumanoidRootPart = Character:WaitForChild("HumanoidRootPart")
+            raycastParams.FilterDescendantsInstances = {Character}
             
-            -- Set up the checking loop
-            connection = RunService.Heartbeat:Connect(function(deltaTime)
-                checkPlayers()
-            end)
+            connection = RunService.Heartbeat:Connect(checkPlayers)
         else
-            -- Disconnect when toggled off
             if connection then
                 connection:Disconnect()
                 connection = nil
@@ -2602,32 +2701,6 @@ local Toggle = Tab:CreateToggle({
         end
     end
 }, "AntiAimToggle")
-
-local Toggle = Tab:CreateToggle({
-    Name = "Anti-AFK",
-    Description = "Prevents you from being kicked from idle by using (wasd)",
-    CurrentValue = false,
-    Callback = function(Value)
-        local vim = game:GetService("VirtualInputManager")
-
-        if Value then
-            getgenv().antiAFKRunning = true
-            task.spawn(function()
-                while getgenv().antiAFKRunning do
-                    for _, key in ipairs({"W", "A", "S", "D"}) do
-                        vim:SendKeyEvent(true, Enum.KeyCode[key], false, game)
-                        task.wait(0.2)
-                        vim:SendKeyEvent(false, Enum.KeyCode[key], false, game)
-                        task.wait(0.2)
-                    end
-                    task.wait(1080)
-                end
-            end)
-        else
-            getgenv().antiAFKRunning = false
-        end
-    end
-}, "AAToggle")
 
 local Toggle = Tab:CreateToggle({
 	Name = "VoidProtection",
