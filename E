@@ -1248,7 +1248,7 @@ queueNotification("Made By Hmmm5650", "Script Started", 3, Color3.fromRGB(161, 1
 local Luna = loadstring(game:HttpGet("https://raw.githubusercontent.com/Nebula-Softworks/Luna-Interface-Suite/refs/heads/main/source.lua", true))()
 local Window = Luna:CreateWindow({
     Name = "SilverWare🍴",
-    Subtitle = "(v1.8) [ Only For Mobile ] ", -- VZ
+    Subtitle = "(v1.9) [ Only For Mobile ] ", -- VZ
     LogoID = "98445694743887",
     LoadingEnabled = false,
     LoadingTitle = "Starting SilverWare🍴",
@@ -2430,7 +2430,10 @@ local Toggle = Tab:CreateToggle({
                 -- Extended list of anti-cheat identifiers
                 local antiCheatNames = {
                     "AntiCheat", "AntiExploitScript", "AC_", "SecurityModule",
-                    "AntiHack", "ExploitProtection", "CheatDetection", "HackShield"
+                    "AntiHack", "ExploitProtection", "CheatDetection", "HackShield",
+                    "VAC", "MoonSec", "SimpleSpy", "Synapse", "Kick", "Ban",
+                    "AntiExploit", "ExploitDetection", "HackDetection", "AntiInject",
+                    "ScriptProtection", "ScriptShield", "AntiTamper", "MemoryProtect"
                 }
                 
                 -- Check for common obfuscated patterns
@@ -2498,6 +2501,15 @@ local Toggle = Tab:CreateToggle({
         end
     end
 }, "DeleteACToggle")
+
+
+local Button = Tab:CreateButton({
+	Name = "AntiCheat Analyser",
+	Description = "High SineWave Is Risky & Low Is Safe", -- Creates A Description For Users to know what the button does (looks bad if you use it all the time),
+    	Callback = function()
+         loadstring(game:HttpGet("https://raw.githubusercontent.com/OBFhm5650lol/Z/refs/heads/main/Z"))()
+    	end
+})
 
 local LocalPlayer = Players.LocalPlayer
 local Character = LocalPlayer.Character or LocalPlayer.CharacterAdded:Wait()
@@ -2737,14 +2749,6 @@ local Button = Tab:CreateButton({
     	end
 })
 
-local Button = Tab:CreateButton({
-	Name = "Bypass Status",
-	Description = "High SineWave Is Risky & Low Is Safe", -- Creates A Description For Users to know what the button does (looks bad if you use it all the time),
-    	Callback = function()
-         loadstring(game:HttpGet("https://raw.githubusercontent.com/OBFhm5650lol/Z/refs/heads/main/Z"))()
-    	end
-})
-
 Tab:CreateDivider()
 Tab:CreateSection("Sum cool scripts that I found from walmart")
 
@@ -2975,7 +2979,7 @@ Tab:CreateDivider()
 
 local Paragraph = Tab:CreateParagraph({
 	Title = "[ UpdateLog ]",
-	Text = "Added More Stuff To The ''Misc'' Tab | Added The ''Protection'' Tab | Bugs Fixed 31"
+	Text = "Updated The AntiCheat Analyser And ''Delete AntiCheats'' Toggle | Bugs Fixed 31"
 })
 
 Luna:Notification({ 
