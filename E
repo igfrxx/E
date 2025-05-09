@@ -1,852 +1,2992 @@
-game:GetService("StarterGui"):SetCore("SendNotification", {
-    Title = "Game Detected",
-    Text = "Game has been detected...",
-    Duration = 5
-})
+pcall(function()
 
-game:GetService("StarterGui"):SetCore("SendNotification", {
-    Title = "AntiCheat Scanner",
-    Text = "Initializing advanced detection system...",
-    Duration = 5
-})
+-- Services
+local Players = game:GetService("Players")
+local TweenService = game:GetService("TweenService")
+local RunService = game:GetService("RunService")
+local UserInputService = game:GetService("UserInputService")
+local SoundService = game:GetService("SoundService")
+local Teams = game:GetService("Teams")
+local Lighting = game:GetService("Lighting")
+local Players = game:GetService("Players")
+local LocalPlayer = Players.LocalPlayer
+local RunService = game:GetService("RunService")
+local Teams = game:GetService("Teams")
+local HttpService = game:GetService("HttpService")
+local Players = game:GetService("Players")
+local Players = game:GetService("Players")
+local LocalPlayer = Players.LocalPlayer
+local RunService = game:GetService("RunService")
+local Workspace = game:GetService("Workspace")
+local Players = game:GetService("Players")
+local RunService = game:GetService("RunService")
 
-task.wait(3)
+-- StoredVariables
 
-game:GetService("StarterGui"):SetCore("SendNotification", {
-    Title = "⚠️Warning",
-    Text = "This Might Not Be That Accurate",
-    Duration = 5
-})
+-- memCleaner
+local function memCleaner()
+    -- Get initial memory usage
+    local before = collectgarbage("count")
+    
+    -- Print initial memory (convert KB to MB)
+    print("[Memory Cleaner] Starting cleanup...")
+    print(string.format("[Memory Cleaner] Current memory: %.2f MB", before/1024))
+    
+    -- Force garbage collection twice (recommended by Lua docs)
+    for i = 1, 2 do
+        collectgarbage("collect")
+    end
+    
+    -- Additional Roblox-specific cleanup
+    game:GetService("ContentProvider"):SetBaseUrl("http://www.roblox.com")
+    
+    -- Get final memory usage
+    local after = collectgarbage("count")
+    
+    -- Print results
+    print(string.format("[Memory Cleaner] Memory after cleanup: %.2f MB", after/1024))
+    print(string.format("[Memory Cleaner] Freed: %.2f MB", (before-after)/1024))
+    
+    return (before-after)/1024
+end
 
+-- VoidProtection Variable
+local player = Players.LocalPlayer
+local character = player.Character or player.CharacterAdded:Wait()
+local hrp = character:WaitForChild("HumanoidRootPart")
+local humanoid = character:WaitForChild("Humanoid")
 
--- Create the main GUI frame
-local screenGui = Instance.new("ScreenGui")
-screenGui.Name = "AdvancedAntiCheatScanner"
-screenGui.Parent = game.Players.LocalPlayer:WaitForChild("PlayerGui")
+local monitoring = false
+local connection
+local highestY = hrp.Position.Y
+local lastPropulsionHeight = 0
+local consecutiveBounces = 0
 
--- Detect platform (PC or Mobile)
-local isMobile = game:GetService("UserInputService").TouchEnabled
-local isPC = not isMobile
+-- Function to check if player is on a platform
+local function isOnPlatform()
+    if not humanoid then return false end
+    return humanoid.FloorMaterial ~= Enum.Material.Air
+end
 
--- Set sizes based on platform
-local guiWidth, guiHeight = isPC and 500 or 350, isPC and 350 or 250
-local wavePointDensity = isPC and 1.2 or 2
-local counterFontSize, acFontSize = isPC and 20 or 16, isPC and 20 or 16
+function VoidProtectionOn()
+    if monitoring then return end
+    monitoring = true
+
+    connection = RunService.Heartbeat:Connect(function()
+        if not character or not character:FindFirstChild("HumanoidRootPart") then return end
+
+        local currentY = hrp.Position.Y
+
+        -- Reset system if player is on a platform
+        if isOnPlatform() then
+            highestY = currentY
+            consecutiveBounces = 0
+            return
+        end
+
+        -- Update the highest point if we're ascending
+        if hrp.Velocity.Y > 0 then
+            highestY = currentY
+        end
+
+        -- Check if we've fallen below the void level
+        if currentY <-105 then
+            local fallDistance = highestY - currentY
+            
+            -- Increase bounce strength based on consecutive bounces
+            consecutiveBounces = consecutiveBounces + 1
+            local bounceMultiplier = 2 + (consecutiveBounces * 0.5) -- Each bounce increases power by 50%
+            local bounceVelocity = math.clamp(fallDistance * bounceMultiplier, 100, 500)
+
+            hrp.Velocity = Vector3.new(0, bounceVelocity, 0)
+
+            -- Store the height we were propelled from
+            lastPropulsionHeight = currentY
+        end
+    end)
+end
+
+function VoidProtectionOff()
+    if connection then
+        connection:Disconnect()
+    end
+    monitoring = false
+end
+
+-- Esp Variable
+
+-- Configurations
+local highlightEspEnabled = false
+local nameEspEnabled = false
+local boxEspEnabled = false
+local distanceEspEnabled = false
+local healthEspEnabled = false
+local espColor = Color3.fromRGB(86, 171, 128)
+local espObjects = {}
+local espDistanceFormat = "%.1f" -- Format for distance display (1 decimal place)
+local maxDistance = 1000 -- Max distance to show ESP
+local teamCheckEnabled = true -- Whether to only show enemies
+
+-- Function to safely get player from character
+local function getPlayerFromCharacter(character)
+    for _, player in ipairs(Players:GetPlayers()) do
+        if player.Character == character then
+            return player
+        end
+    end
+    return nil
+end
+
+-- Function to check if a player is an enemy (teamcheck)
+local function isEnemy(player)
+    if not teamCheckEnabled then
+        return player ~= Players.LocalPlayer
+    end
+    
+    local localPlayer = Players.LocalPlayer
+    if not localPlayer or not player or player == localPlayer then
+        return false
+    end
+
+    local localTeam = localPlayer.Team
+    local targetTeam = player.Team
+
+    -- If the game doesn't use teams, treat all players (except self) as enemies
+    if Teams:GetChildren() == nil or #Teams:GetChildren() == 0 then
+        return true
+    end
+
+    -- If teams exist, check if they're different
+    return localTeam ~= targetTeam
+end
+
+-- Function to calculate distance between two positions
+local function calculateDistance(position1, position2)
+    if not position1 or not position2 then return 0 end
+    return (position1 - position2).Magnitude
+end
+
+-- Function to format distance for display
+local function formatDistance(distance)
+    return string.format(espDistanceFormat, distance)
+end
+
+-- Function to update ESP information (distance, health, etc)
+local function updateEspInfo()
+    local localPlayer = Players.LocalPlayer
+    if not localPlayer or not localPlayer.Character then return end
+    
+    local localRoot = localPlayer.Character:FindFirstChild("HumanoidRootPart")
+    if not localRoot then return end
+    
+    for player, objects in pairs(espObjects) do
+        if player and player:IsA("Player") and player.Character then
+            local character = player.Character
+            local humanoidRootPart = character:FindFirstChild("HumanoidRootPart")
+            local humanoid = character:FindFirstChildOfClass("Humanoid")
+            
+            if humanoidRootPart then
+                -- Update distance display
+                if distanceEspEnabled then
+                    local distance = calculateDistance(localRoot.Position, humanoidRootPart.Position)
+                    if distance <= maxDistance then
+                        for _, obj in pairs(objects) do
+                            if obj:IsA("BillboardGui") and obj.Name == "SilverWareNameEsp" then
+                                local textLabel = obj:FindFirstChild("TextLabel")
+                                if textLabel then
+                                    local displayText = player.Name
+                                    if healthEspEnabled and humanoid then
+                                        displayText = displayText .. "\nHP: " .. math.floor(humanoid.Health) .. "/" .. math.floor(humanoid.MaxHealth)
+                                    end
+                                    if distanceEspEnabled then
+                                        displayText = displayText .. "\n" .. formatDistance(distance) .. "m"
+                                    end
+                                    textLabel.Text = displayText
+                                end
+                            end
+                        end
+                    else
+                        -- Hide ESP if beyond max distance
+                        for _, obj in pairs(objects) do
+                            if obj and obj.Parent then
+                                obj.Enabled = false
+                            end
+                        end
+                    end
+                end
+                
+                -- Update health color if health ESP is enabled
+                if healthEspEnabled and humanoid then
+                    local healthPercent = humanoid.Health / humanoid.MaxHealth
+                    local healthColor
+                    if healthPercent > 0.7 then
+                        healthColor = Color3.new(0, 1, 0) -- Green
+                    elseif healthPercent > 0.3 then
+                        healthColor = Color3.new(1, 1, 0) -- Yellow
+                    else
+                        healthColor = Color3.new(1, 0, 0) -- Red
+                    end
+                    
+                    for _, obj in pairs(objects) do
+                        if obj:IsA("Highlight") then
+                            obj.FillColor = healthColor
+                            obj.OutlineColor = healthColor
+                        elseif obj:IsA("BoxHandleAdornment") then
+                            obj.Color3 = healthColor
+                        elseif obj:IsA("BillboardGui") and obj:FindFirstChild("TextLabel") then
+                            obj.TextLabel.TextColor3 = healthColor
+                        end
+                    end
+                end
+            end
+        end
+    end
+end
+
+-- Function to create ESP
+local function createEsp(player)
+    if not player or not player:IsA("Player") or not player.Character then return end
+
+    local character = player.Character
+    if not character or not character.Parent then return end
+    
+    local humanoidRootPart = character:FindFirstChild("HumanoidRootPart")
+    local humanoid = character:FindFirstChildOfClass("Humanoid")
+    if not humanoidRootPart or not humanoid then return end
+
+    -- Remove existing ESP if it exists
+    if espObjects[player] then
+        for _, obj in pairs(espObjects[player]) do
+            if obj and obj.Parent then
+                obj:Destroy()
+            end
+        end
+        espObjects[player] = nil
+    end
+
+    -- Only create ESP for enemies if team check is enabled
+    if teamCheckEnabled and not isEnemy(player) then return end
+
+    -- Create new ESP objects
+    espObjects[player] = {}
+
+    -- Highlight ESP
+    if highlightEspEnabled then
+        local highlight = Instance.new("Highlight")
+        highlight.Name = "SilverWareHighlight"
+        highlight.Adornee = character
+        highlight.FillColor = espColor
+        highlight.OutlineColor = espColor
+        highlight.FillTransparency = 0.5
+        highlight.OutlineTransparency = 0
+        highlight.Parent = character
+        table.insert(espObjects[player], highlight)
+    end
+
+    -- Name ESP (also shows distance and health if enabled)
+    if nameEspEnabled or distanceEspEnabled or healthEspEnabled then
+        local billboard = Instance.new("BillboardGui")
+        billboard.Name = "SilverWareNameEsp"
+        billboard.Adornee = humanoidRootPart
+        billboard.Size = UDim2.new(0, 200, 0, 60) -- Larger to accommodate extra info
+        billboard.StudsOffset = Vector3.new(0, 3, 0)
+        billboard.AlwaysOnTop = true
+        
+        local textLabel = Instance.new("TextLabel")
+        textLabel.Text = player.Name
+        textLabel.Size = UDim2.new(1, 0, 1, 0)
+        textLabel.BackgroundTransparency = 1
+        textLabel.TextStrokeTransparency = 0
+        textLabel.TextColor3 = espColor
+        textLabel.TextStrokeColor3 = Color3.new(0, 0, 0)
+        textLabel.TextScaled = false
+        textLabel.TextSize = 14
+        textLabel.Font = Enum.Font.GothamBold
+        textLabel.TextYAlignment = Enum.TextYAlignment.Top
+        textLabel.Parent = billboard
+        
+        if humanoidRootPart and humanoidRootPart.Parent then
+            billboard.Parent = humanoidRootPart
+            table.insert(espObjects[player], billboard)
+        else
+            billboard:Destroy()
+        end
+    end
+
+    -- Box ESP
+    if boxEspEnabled then
+        local box = Instance.new("BoxHandleAdornment")
+        box.Name = "SilverWareBoxEsp"
+        box.Adornee = humanoidRootPart
+        box.AlwaysOnTop = true
+        box.ZIndex = 10
+        box.Size = humanoidRootPart.Size * 1.5
+        box.Transparency = 0.5
+        box.Color3 = espColor
+        
+        if humanoidRootPart and humanoidRootPart.Parent then
+            box.Parent = humanoidRootPart
+            table.insert(espObjects[player], box)
+        else
+            box:Destroy()
+        end
+    end
+    
+    -- Tracer ESP (line from bottom of screen to player)
+    if tracerEspEnabled then
+        local tracer = Instance.new("Frame")
+        tracer.Name = "SilverWareTracerEsp"
+        tracer.BackgroundColor3 = espColor
+        tracer.BorderSizePixel = 0
+        tracer.Size = UDim2.new(0, 1, 0, 1000) -- Long vertical line
+        tracer.AnchorPoint = Vector2.new(0.5, 1)
+        tracer.Position = UDim2.new(0.5, 0, 1, 0)
+        tracer.Parent = game:GetService("CoreGui")
+        
+        -- Store reference to update position later
+        table.insert(espObjects[player], tracer)
+    end
+end
+
+-- Function to update ESP color
+local function updateEspColor(newColor)
+    espColor = newColor
+    for player, objects in pairs(espObjects) do
+        if player and player:IsA("Player") then
+            for _, obj in pairs(objects) do
+                if obj and obj.Parent then
+                    if obj:IsA("Highlight") then
+                        if not healthEspEnabled then
+                            obj.FillColor = newColor
+                            obj.OutlineColor = newColor
+                        end
+                    elseif obj:IsA("BillboardGui") and obj:FindFirstChild("TextLabel") then
+                        if not healthEspEnabled then
+                            obj.TextLabel.TextColor3 = newColor
+                        end
+                    elseif obj:IsA("BoxHandleAdornment") then
+                        if not healthEspEnabled then
+                            obj.Color3 = newColor
+                        end
+                    elseif obj:IsA("Frame") and obj.Name == "SilverWareTracerEsp" then
+                        obj.BackgroundColor3 = newColor
+                    end
+                end
+            end
+        end
+    end
+end
+
+-- Function to toggle ESP for all players
+local function toggleEsp()
+    for _, player in ipairs(Players:GetPlayers()) do
+        if player and player:IsA("Player") then
+            createEsp(player)
+        end
+    end
+end
+
+-- Function to clear all ESP
+local function clearEsp()
+    for player, objects in pairs(espObjects) do
+        if objects then
+            for _, obj in pairs(objects) do
+                if obj and obj.Parent then
+                    obj:Destroy()
+                end
+            end
+        end
+    end
+    espObjects = {}
+end
+
+-- Handle player respawns
+local function onCharacterAdded(character, player)
+    if not character or not character.Parent then return end
+    
+    -- Wait for character to fully load
+    local humanoidRootPart = character:WaitForChild("HumanoidRootPart", 5)
+    local humanoid = character:WaitForChild("Humanoid", 5)
+    
+    if not humanoidRootPart or not humanoid then return end
+    
+    -- Only create ESP if at least one ESP type is enabled and player is an enemy (if team check is on)
+    local shouldCreateEsp = (highlightEspEnabled or nameEspEnabled or boxEspEnabled or distanceEspEnabled or healthEspEnabled) and
+                          (not teamCheckEnabled or isEnemy(player))
+    
+    if shouldCreateEsp then
+        createEsp(player)
+    end
+    
+    -- Handle future respawns
+    humanoid.Died:Connect(function()
+        -- Clean up ESP when player dies
+        if espObjects[player] then
+            for _, obj in pairs(espObjects[player]) do
+                if obj and obj.Parent then
+                    obj:Destroy()
+                end
+            end
+            espObjects[player] = nil
+        end
+        
+        -- Recreate ESP when player respawns if conditions are met
+        player.CharacterAdded:Connect(function(newCharacter)
+            task.wait(1) -- Wait for character to load
+            
+            local shouldRecreate = (highlightEspEnabled or nameEspEnabled or boxEspEnabled or distanceEspEnabled or healthEspEnabled) and
+                                 (not teamCheckEnabled or isEnemy(player))
+            
+            if shouldRecreate then
+                createEsp(player)
+            end
+        end)
+    end)
+end
+
+-- Player added/removed connections
+local function onPlayerAdded(player)
+    if not player or not player:IsA("Player") then return end
+    
+    -- Handle initial character
+    player.CharacterAdded:Connect(function(character)
+        onCharacterAdded(character, player)
+    end)
+    
+    if player.Character then
+        coroutine.wrap(onCharacterAdded)(player.Character, player)
+    end
+end
+
+local function onPlayerRemoving(player)
+    if not player or not player:IsA("Player") then return end
+    
+    -- Clean up ESP when player leaves
+    if espObjects[player] then
+        for _, obj in pairs(espObjects[player]) do
+            if obj and obj.Parent then
+                obj:Destroy()
+            end
+        end
+        espObjects[player] = nil
+    end
+end
+
+-- Initialize for existing players
+for _, player in ipairs(Players:GetPlayers()) do
+    onPlayerAdded(player)
+end
+
+-- Connect future players
+Players.PlayerAdded:Connect(onPlayerAdded)
+Players.PlayerRemoving:Connect(onPlayerRemoving)
+
+-- Initialize for local player (in case they respawn)
+if Players.LocalPlayer and Players.LocalPlayer.Character then
+    onCharacterAdded(Players.LocalPlayer.Character, Players.LocalPlayer)
+end
+
+-- Create a loop to update ESP information
+local espUpdateLoop = RunService.RenderStepped:Connect(function()
+    if highlightEspEnabled or nameEspEnabled or boxEspEnabled or distanceEspEnabled or healthEspEnabled then
+        updateEspInfo()
+    end
+end)
+
+-- Hitbox Variable
+local localPlayer = Players.LocalPlayer
+while not localPlayer do
+    task.wait()
+    localPlayer = Players.LocalPlayer
+end
+
+-- Configuration variables
+local hitboxSize = 10
+local hitboxTransparency = 0.5
+local hitboxEnabled = false
+local hitboxType = "Both" -- "Both", "Only Hrp", "Only Head"
+local hitboxColor = Color3.fromRGB(255, 0, 0)
+
+-- Team detection function
+local function isEnemy(player)
+    if player == localPlayer then return false end
+    
+    local teams = game:GetService("Teams"):GetTeams()
+    if #teams > 1 then
+        if localPlayer.Team == nil or player.Team == nil then
+            return true
+        end
+        return localPlayer.Team ~= player.Team
+    else
+        return true
+    end
+end
+
+-- Apply hitbox to a character
+local function applyHitbox(character)
+    if not character or not hitboxEnabled then return end
+    
+    local player = Players:GetPlayerFromCharacter(character)
+    if player and player == localPlayer then return end
+    
+    local humanoid = character:FindFirstChildOfClass("Humanoid")
+    if humanoid and humanoid.Health <= 0 then return end
+    
+    local isR15 = humanoid and humanoid.RigType == Enum.HumanoidRigType.R15
+    
+    -- Store original sizes if not already stored
+    local function storeOriginalSize(part)
+        if not part:FindFirstChild("OriginalSize") then
+            local originalSize = Instance.new("Vector3Value")
+            originalSize.Name = "OriginalSize"
+            originalSize.Value = part.Size
+            originalSize.Parent = part
+        end
+    end
+
+    -- Apply hitbox to a specific part
+    local function applyToPart(part)
+        if not part then return end
+        storeOriginalSize(part)
+        part.Size = Vector3.new(hitboxSize, hitboxSize, hitboxSize)
+        part.Transparency = hitboxTransparency
+        part.BrickColor = BrickColor.new(hitboxColor)
+        part.Material = Enum.Material.ForceField
+        part.CanCollide = false
+    end
+
+    -- Apply based on selected hitbox type
+    if hitboxType == "Both" or hitboxType == "Only Hrp" then
+        local rootPart = character:FindFirstChild("HumanoidRootPart") or character:FindFirstChild("UpperTorso")
+        applyToPart(rootPart)
+        
+        if isR15 and hitboxType == "Both" then
+            local lowerTorso = character:FindFirstChild("LowerTorso")
+            applyToPart(lowerTorso)
+        end
+    end
+    
+    if hitboxType == "Both" or hitboxType == "Only Head" then
+        local head = character:FindFirstChild("Head")
+        if head then
+            applyToPart(head)
+        end
+    end
+    
+    -- For R15, adjust other parts if "Both" is selected
+    if isR15 and hitboxType == "Both" then
+        local partsToAdjust = {"UpperTorso", "LowerTorso", "LeftUpperArm", "RightUpperArm", "LeftUpperLeg", "RightUpperLeg"}
+        for _, partName in ipairs(partsToAdjust) do
+            local part = character:FindFirstChild(partName)
+            applyToPart(part)
+        end
+    end
+end
+
+-- Reset hitbox to original size
+local function resetHitbox(character)
+    if not character then return end
+    
+    local player = Players:GetPlayerFromCharacter(character)
+    if player and player == localPlayer then return end
+    
+    local function resetPart(part)
+        if part and part:FindFirstChild("OriginalSize") then
+            part.Size = part.OriginalSize.Value
+            part.Transparency = 1
+            part.BrickColor = BrickColor.new("Medium stone grey")
+            part.Material = Enum.Material.Plastic
+            part.CanCollide = true
+        end
+    end
+
+    -- Reset all parts regardless of current hitbox type
+    local rootPart = character:FindFirstChild("HumanoidRootPart") or character:FindFirstChild("UpperTorso")
+    resetPart(rootPart)
+    
+    local head = character:FindFirstChild("Head")
+    resetPart(head)
+    
+    local humanoid = character:FindFirstChildOfClass("Humanoid")
+    local isR15 = humanoid and humanoid.RigType == Enum.HumanoidRigType.R15
+    
+    if isR15 then
+        local partsToReset = {"LowerTorso", "UpperTorso", "LeftUpperArm", "RightUpperArm", "LeftUpperLeg", "RightUpperLeg"}
+        for _, partName in ipairs(partsToReset) do
+            local part = character:FindFirstChild(partName)
+            resetPart(part)
+        end
+    end
+end
+
+-- Apply hitboxes to all players
+local function applyHitboxesToAllPlayers()
+    for _, player in ipairs(Players:GetPlayers()) do
+        if isEnemy(player) and player.Character then
+            applyHitbox(player.Character)
+        end
+    end
+end
+
+-- Reset hitboxes on all players
+local function resetHitboxesOnAllPlayers()
+    for _, player in ipairs(Players:GetPlayers()) do
+        if player.Character then
+            resetHitbox(player.Character)
+        end
+    end
+end
+
+-- Hitbox toggle system
+local hitboxCoroutine
+local function toggleHitboxes(enabled)
+    hitboxEnabled = enabled
+    
+    if enabled then
+        applyHitboxesToAllPlayers()
+        
+        if not hitboxCoroutine then
+            hitboxCoroutine = coroutine.create(function()
+                while hitboxEnabled and task.wait(0.5) do
+                    applyHitboxesToAllPlayers()
+                end
+            end)
+            coroutine.resume(hitboxCoroutine)
+        end
+    else
+        if hitboxCoroutine then
+            coroutine.close(hitboxCoroutine)
+            hitboxCoroutine = nil
+        end
+        resetHitboxesOnAllPlayers()
+    end
+end
+
+-- Player tracking system
+local function trackPlayer(player)
+    if not player then return end
+    
+    if isEnemy(player) then
+        player.CharacterAdded:Connect(function(character)
+            task.wait(1) -- Wait for character to fully load
+            
+            local humanoid = character:WaitForChild("Humanoid")
+            
+            local function updateHitboxState()
+                if hitboxEnabled then
+                    if humanoid.Health > 0 then
+                        applyHitbox(character)
+                    else
+                        resetHitbox(character)
+                    end
+                end
+            end
+            
+            updateHitboxState()
+            humanoid.HealthChanged:Connect(updateHitboxState)
+        end)
+        
+        if player.Character then
+            local humanoid = player.Character:FindFirstChildOfClass("Humanoid")
+            if humanoid then
+                if hitboxEnabled then
+                    if humanoid.Health > 0 then
+                        applyHitbox(player.Character)
+                    else
+                        resetHitbox(player.Character)
+                    end
+                end
+            end
+        end
+    end
+end
+
+-- Initialize tracking for all players
+for _, player in ipairs(Players:GetPlayers()) do
+    trackPlayer(player)
+end
+
+-- Player added/removed events
+Players.PlayerAdded:Connect(trackPlayer)
+
+-- FPS Counter
+local fpsGui = Instance.new("ScreenGui")
+fpsGui.Name = "FPSCounterGui"
+fpsGui.ResetOnSpawn = false
+fpsGui.Enabled = false
+fpsGui.Parent = game:GetService("CoreGui")
 
 local frame = Instance.new("Frame")
-frame.Size = UDim2.new(0, guiWidth, 0, guiHeight)
-frame.Position = UDim2.new(0.5, -guiWidth/2, 0.5, -guiHeight/2)
-frame.AnchorPoint = Vector2.new(0.5, 0.5)
-frame.BackgroundColor3 = Color3.fromRGB(20, 20, 30)
+frame.Size = UDim2.new(0, 120, 0, 50)
+frame.Position = UDim2.new(0, 10, 0, 10)
+frame.BackgroundColor3 = Color3.fromRGB(109, 110, 108)
+frame.BackgroundTransparency = 0.3
 frame.BorderSizePixel = 0
-frame.ClipsDescendants = true
 frame.Active = true
 frame.Draggable = true
-frame.Parent = screenGui
+frame.Parent = fpsGui
 
--- Add subtle gradient
-local gradient = Instance.new("UIGradient")
-gradient.Color = ColorSequence.new({
-    ColorSequenceKeypoint.new(0, Color3.fromRGB(30, 30, 45)),
-    ColorSequenceKeypoint.new(1, Color3.fromRGB(15, 15, 25))
-})
-gradient.Rotation = 90
-gradient.Parent = frame
+local corner = Instance.new("UICorner")
+corner.CornerRadius = UDim.new(0, 12) -- You can adjust the radius as needed
+corner.Parent = frame
 
--- Close button
-local closeButton = Instance.new("TextButton")
-closeButton.Size = UDim2.new(0, 25, 0, 25)
-closeButton.Position = UDim2.new(1, -30, 0, 5)
-closeButton.Text = "×"
-closeButton.TextColor3 = Color3.fromRGB(0, 255, 0)
-closeButton.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
-closeButton.BackgroundTransparency = 1
-closeButton.BorderSizePixel = 0
-closeButton.Font = Enum.Font.GothamBold
-closeButton.TextSize = 20
-closeButton.ZIndex = 2
-closeButton.Parent = frame
+local label = Instance.new("TextLabel")
+label.Size = UDim2.new(1, 0, 1, 0)
+label.BackgroundTransparency = 1
+label.TextColor3 = Color3.new(1, 1, 1)
+label.TextScaled = false
+label.TextSize = 14 -- Adjust this number to make it smaller or larger
+label.Font = Enum.Font.Gotham
+label.Text = "FPS: 0"
+label.Parent = frame
 
-closeButton.MouseEnter:Connect(function()
-    closeButton.BackgroundColor3 = Color3.fromRGB(220, 60, 60)
-end)
+-- FPS Update Loop
+local fps = 0
+local counter = 0
+local lastTick = tick()
+local fpsConnection = nil
 
-closeButton.MouseLeave:Connect(function()
-    closeButton.BackgroundColor3 = Color3.fromRGB(180, 40, 40)
-end)
-
-closeButton.MouseButton1Click:Connect(function()
-    screenGui:Destroy()
-end)
-
--- Get game name
-local gameName = game:GetService("MarketplaceService"):GetProductInfo(game.PlaceId).Name
-if #gameName > 25 then
-    gameName = string.sub(gameName, 1, 22).."..."
+local function updateFPS()
+    counter += 1
+    if tick() - lastTick >= 1 then
+        fps = counter
+        counter = 0
+        lastTick = tick()
+        label.Text = "FPS: " .. tostring(math.floor(fps))
+    end
 end
 
--- Header with AC info
-local header = Instance.new("Frame")
-header.Size = UDim2.new(1, -40, 0, 30)
-header.Position = UDim2.new(0, 20, 0, 10)
-header.BackgroundTransparency = 1
-header.Parent = frame
-
-local acLabel = Instance.new("TextLabel")
-acLabel.Size = UDim2.new(0.6, 0, 1, 0)
-acLabel.Position = UDim2.new(0, 0, 0, 0)
-acLabel.Text = "SCANNING... | "..gameName
-acLabel.TextColor3 = Color3.fromRGB(200, 200, 0)
-acLabel.BackgroundTransparency = 1
-acLabel.Font = Enum.Font.GothamBold
-acLabel.TextSize = acFontSize
-acLabel.TextXAlignment = Enum.TextXAlignment.Left
-acLabel.TextTruncate = Enum.TextTruncate.AtEnd
-acLabel.Parent = header
-
-local counterLabel = Instance.new("TextLabel")
-counterLabel.Size = UDim2.new(0.4, 0, 1, 0)
-counterLabel.Position = UDim2.new(0.6, 0, 0, 0)
-counterLabel.Text = "m[00.00%]      "
-counterLabel.TextColor3 = Color3.fromRGB(200, 200, 0)
-counterLabel.BackgroundTransparency = 1
-counterLabel.Font = Enum.Font.GothamBold
-counterLabel.TextSize = counterFontSize
-counterLabel.TextXAlignment = Enum.TextXAlignment.Right
-counterLabel.Parent = header
-
--- Canvas for the visualization
-local canvas = Instance.new("Frame")
-canvas.Size = UDim2.new(1, -20, 0, 150)
-canvas.Position = UDim2.new(0, 10, 0, 50)
-canvas.BackgroundColor3 = Color3.fromRGB(5, 5, 10)
-canvas.BorderSizePixel = 0
-canvas.Parent = frame
-
--- Add grid pattern to canvas
-local gridPattern = Instance.new("Frame")
-gridPattern.Size = UDim2.new(1, 0, 1, 0)
-gridPattern.BackgroundTransparency = 1
-gridPattern.Parent = canvas
-
-for i = 0, 10 do
-    local line = Instance.new("Frame")
-    line.Size = UDim2.new(0, 1, 1, 0)
-    line.Position = UDim2.new(0, i * (canvas.AbsoluteSize.X / 10), 0, 0)
-    line.BackgroundColor3 = Color3.fromRGB(30, 30, 50)
-    line.BorderSizePixel = 0
-    line.Parent = gridPattern
-    
-    local lineH = Instance.new("Frame")
-    lineH.Size = UDim2.new(1, 0, 0, 1)
-    lineH.Position = UDim2.new(0, 0, 0, i * (canvas.AbsoluteSize.Y / 10))
-    lineH.BackgroundColor3 = Color3.fromRGB(30, 30, 50)
-    lineH.BorderSizePixel = 0
-    lineH.Parent = gridPattern
+-- Function to toggle FPS counter
+local function toggleFpsCounter(enable)
+    if enable then
+        if not fpsConnection then
+            fpsConnection = RunService.RenderStepped:Connect(updateFPS)
+        end
+        fpsGui.Enabled = true
+    else
+        if fpsConnection then
+            fpsConnection:Disconnect()
+            fpsConnection = nil
+        end
+        fpsGui.Enabled = false
+    end
 end
 
--- List of common AntiCheat names and patterns to detect (expanded list)
-local commonACNames = {
-    "AntiCheat", "AntiExploit", "AC_", "SecurityModule", "AntiHack", 
-    "ExploitProtection", "CheatDetection", "HackShield", "VAC", "MoonSec", 
-    "SimpleSpy", "Synapse", "Kick", "Ban", "AntiExploit", "ExploitDetection", 
-    "HackDetection", "AntiInject", "ScriptProtection", "ScriptShield", 
-    "AntiTamper", "MemoryProtect", "Badger", "Guardian", "Sentinel", 
-    "Watchdog", "Defender", "Shield", "Protector", "DarkStar", "Elysian", 
-    "Vanguard", "FairFight", "EasyAntiCheat", "BattlEye", "Nexus", 
-    "Polaris", "CheatEngine", "CheatPunch", "GameGuard", "XignCode", 
-    "nProtect", "HSHIELD", "PunkBuster", "Equ8", "Ricochet", "VACnet", 
-    "FAC", "SAC", "Warden", "Denuvo", "Arbiter", "Obsidian", "Titan", 
-    "Aegis", "Fortify", "Bulwark", "RiotShield", "Ironclad", "Sentry", 
-    "Valkyrie", "Hyperion", "Artemis", "Apollo", "Athena", "Zeus", 
-    "Odin", "Thor", "Fenrir", "Jormungandr", "Typhon", "Cerberus"
+-- Notify
+local DEFAULT_DURATION = 5
+local DEFAULT_COLOR = Color3.fromRGB(0, 170, 255)
+local NOTIFICATION_WIDTH = 0.35
+local NOTIFICATION_HEIGHT = 70
+local ANIMATION_DURATION = 0.5
+
+-- Setup
+local player = Players.LocalPlayer
+local gui = player:WaitForChild("PlayerGui")
+
+-- Create ScreenGui if it doesn't exist
+local screenGui = gui:FindFirstChild("NotificationGui") or Instance.new("ScreenGui")
+screenGui.Name = "NotificationGui"
+screenGui.Parent = gui
+screenGui.ResetOnSpawn = false
+
+-- Sound system
+local notificationSounds = SoundService:FindFirstChild("NotificationSounds") or Instance.new("Folder")
+notificationSounds.Name = "NotificationSounds"
+notificationSounds.Parent = SoundService
+
+local soundConfigs = {
+    NotificationAppear = {id = 3023237993, volume = 0.2},
+    NotificationDisappear = {id = 18595195017, volume = 0.2},
+    NotificationHover = {id = 7218169592, volume = 0.2},
+    NotificationClick = {id = 177266782, volume = 0.2},
+    NotificationPulse = {id = 10066936758, volume = 0.2}
 }
 
--- Enhanced AntiCheat detection function with more thorough checks
-local function detectAntiCheat()
-    local foundAC = {}
-    local acStrength = 0
-    local totalPossibleStrength = 0
+local function playSound(soundName)
+    local config = soundConfigs[soundName]
+    if not config then return end
     
-    -- Services to check for AC components
-    local servicesToCheck = {
-        game:GetService("ReplicatedStorage"),
-        game:GetService("ServerScriptService"),
-        game:GetService("Players").LocalPlayer:WaitForChild("PlayerScripts"),
-        game:GetService("Workspace"),
-        game:GetService("Lighting"),
-        game:GetService("StarterPlayer").StarterPlayerScripts,
-        game:GetService("StarterPack"),
-        game:GetService("StarterGui")
-    }
+    local sound = Instance.new("Sound")
+    sound.SoundId = "rbxassetid://"..config.id
+    sound.Volume = config.volume
+    sound.Parent = notificationSounds
+    sound:Play()
     
-    -- Check for specific AC names and components
-    for _, service in ipairs(servicesToCheck) do
-        for _, item in pairs(service:GetDescendants()) do
-            for _, acName in ipairs(commonACNames) do
-                if string.find(string.lower(item.Name), string.lower(acName)) then
-                    local strength = 1 -- Base strength
-                    local detectionType = "Name Match"
-                    
-                    -- Increase strength for certain components
-                    if item:IsA("RemoteEvent") then
-                        strength = strength + 3
-                        detectionType = "RemoteEvent"
-                    elseif item:IsA("RemoteFunction") then
-                        strength = strength + 4
-                        detectionType = "RemoteFunction"
-                    elseif item:IsA("Script") then
-                        strength = strength + 2
-                        detectionType = "Script"
-                    elseif item:IsA("ModuleScript") then
-                        strength = strength + 3
-                        detectionType = "ModuleScript"
-                    elseif item:IsA("BindableEvent") or item:IsA("BindableFunction") then
-                        strength = strength + 1.5
-                        detectionType = "Bindable"
-                    elseif item:IsA("LocalScript") then
-                        strength = strength + 1.5
-                        detectionType = "LocalScript"
-                    end
-                    
-                    -- Check for obfuscated scripts
-                    if item:IsA("Script") or item:IsA("LocalScript") or item:IsA("ModuleScript") then
-                        local source = ""
-                        pcall(function()
-                            source = item.Source
-                        end)
-                        
-                        if source and (string.find(source, "getfenv") or string.find(source, "setfenv") or 
-                           string.find(source, "loadstring") or string.find(source, "bytecode") or
-                           string.find(source, "xor") or string.find(source, "encrypt")) then
-                            strength = strength + 2
-                            detectionType = detectionType.." | Obfuscated"
-                        end
-                    end
-                    
-                    table.insert(foundAC, {
-                        name = item.Name,
-                        path = item:GetFullName(),
-                        type = item.ClassName,
-                        strength = strength,
-                        detection = detectionType
-                    })
-                    acStrength = acStrength + strength
-                    totalPossibleStrength = totalPossibleStrength + 6 -- Max per item
-                end
-            end
-        end
-    end
-    
-    -- Check for hidden or protected scripts
-    local hiddenACFound = false
-    pcall(function()
-        for _, v in pairs(getnilinstances()) do
-            for _, acName in ipairs(commonACNames) do
-                if string.find(string.lower(v.Name), string.lower(acName)) then
-                    hiddenACFound = true
-                    table.insert(foundAC, {
-                        name = v.Name,
-                        path = "Hidden Instance",
-                        type = v.ClassName,
-                        strength = 6, -- Highest strength for hidden AC
-                        detection = "Hidden Instance"
-                    })
-                    acStrength = acStrength + 6
-                    totalPossibleStrength = totalPossibleStrength + 6
-                end
-            end
-        end
+    sound.Ended:Connect(function()
+        sound:Destroy()
     end)
+end
+
+-- Notification queue system
+local notificationQueue = {}
+local isShowingNotification = false
+
+local function showNextNotification()
+    if #notificationQueue == 0 or isShowingNotification then return end
+    isShowingNotification = true
     
-    -- Check for memory protection
-    local memoryProtected = false
-    pcall(function()
-        if not game:GetService("Stats").PerformanceStats:GetChildren() then
-            memoryProtected = true
-            table.insert(foundAC, {
-                name = "Memory Protection",
-                path = "Game Stats",
-                type = "System",
-                strength = 5,
-                detection = "Memory Protection"
+    local notificationData = table.remove(notificationQueue, 1)
+    showNotification(notificationData.title, notificationData.message, notificationData.duration, notificationData.color)
+end
+
+-- Main notification function
+function showNotification(title, message, duration, color)
+    duration = duration or DEFAULT_DURATION
+    color = color or DEFAULT_COLOR
+
+    -- Play appear sound
+    playSound("NotificationAppear")
+
+    -- Main frame
+    local frame = Instance.new("Frame")
+    frame.Name = "Notification"
+    frame.Size = UDim2.new(NOTIFICATION_WIDTH, 0, 0, NOTIFICATION_HEIGHT)
+    frame.Position = UDim2.new(1, 10, 0.85, 0)
+    frame.AnchorPoint = Vector2.new(1, 0)
+    frame.BackgroundColor3 = Color3.fromRGB(25, 25, 25)
+    frame.BackgroundTransparency = 0.8
+    frame.BorderSizePixel = 0
+    frame.Parent = screenGui
+    frame.ZIndex = 10
+    frame.ClipsDescendants = true
+
+    -- Shadow effect
+    local shadow = Instance.new("ImageLabel")
+    shadow.Name = "Shadow"
+    shadow.Image = "rbxassetid://1316045217"
+    shadow.ImageTransparency = 0.9
+    shadow.ScaleType = Enum.ScaleType.Slice
+    shadow.SliceCenter = Rect.new(10, 10, 118, 118)
+    shadow.Size = UDim2.new(1, 20, 1, 20)
+    shadow.Position = UDim2.new(0, -10, 0, -10)
+    shadow.BackgroundTransparency = 1
+    shadow.ZIndex = frame.ZIndex - 1
+    shadow.Parent = frame
+
+    -- Rounded corners
+    local corner = Instance.new("UICorner")
+    corner.CornerRadius = UDim.new(0, 6)
+    corner.Parent = frame
+
+    -- Accent line with gradient
+    local accent = Instance.new("Frame")
+    accent.Name = "Accent"
+    accent.Size = UDim2.new(0, 0, 0, 2)
+    accent.Position = UDim2.new(0, 0, 0, 0)
+    accent.BackgroundColor3 = color
+    accent.BorderSizePixel = 0
+    accent.ZIndex = frame.ZIndex + 1
+    accent.Parent = frame
+
+    -- Gradient effect for accent
+    local gradient = Instance.new("UIGradient")
+    gradient.Color = ColorSequence.new{
+        ColorSequenceKeypoint.new(0, color),
+        ColorSequenceKeypoint.new(1, Color3.new(color.R * 0.7, color.G * 0.7, color.B * 0.7))
+    }
+    gradient.Rotation = 90
+    gradient.Parent = accent
+
+    -- Title label
+    local titleLabel = Instance.new("TextLabel")
+    titleLabel.Name = "Title"
+    titleLabel.Text = title
+    titleLabel.TextColor3 = Color3.fromRGB(0, 255, 180)
+    titleLabel.TextTransparency = 1
+    titleLabel.TextSize = 16
+    titleLabel.Font = Enum.Font.GothamBold
+    titleLabel.Size = UDim2.new(1, -40, 0, 20)
+    titleLabel.Position = UDim2.new(0, 10, 0, 8)
+    titleLabel.TextXAlignment = Enum.TextXAlignment.Left
+    titleLabel.BackgroundTransparency = 1
+    titleLabel.ZIndex = frame.ZIndex + 1
+    titleLabel.Parent = frame
+
+    -- Message label with text wrapping
+    local messageLabel = Instance.new("TextLabel")
+    messageLabel.Name = "Message"
+    messageLabel.Text = message
+    messageLabel.TextColor3 = Color3.fromRGB(200, 200, 200)
+    messageLabel.TextTransparency = 1
+    messageLabel.TextSize = 14
+    messageLabel.Font = Enum.Font.Gotham
+    messageLabel.Size = UDim2.new(1, -20, 0, 35)
+    messageLabel.Position = UDim2.new(0, 10, 0, 30)
+    messageLabel.TextXAlignment = Enum.TextXAlignment.Left
+    messageLabel.TextYAlignment = Enum.TextYAlignment.Top
+    messageLabel.BackgroundTransparency = 1
+    messageLabel.TextWrapped = true
+    messageLabel.ZIndex = frame.ZIndex + 1
+    messageLabel.Parent = frame
+
+    -- Close button
+    local closeButton = Instance.new("ImageButton")
+    closeButton.Name = "CloseButton"
+    closeButton.Image = "rbxassetid://3926305904"
+    closeButton.ImageRectOffset = Vector2.new(284, 4)
+    closeButton.ImageRectSize = Vector2.new(24, 24)
+    closeButton.ImageColor3 = Color3.fromRGB(180, 180, 180)
+    closeButton.ImageTransparency = 1
+    closeButton.Size = UDim2.new(0, 20, 0, 20)
+    closeButton.Position = UDim2.new(1, -25, 0, 6)
+    closeButton.BackgroundTransparency = 1
+    closeButton.ZIndex = frame.ZIndex + 1
+    closeButton.Parent = frame
+
+    -- Progress bar for time remaining
+    local progressBar = Instance.new("Frame")
+    progressBar.Name = "ProgressBar"
+    progressBar.Size = UDim2.new(1, 0, 0, 2)
+    progressBar.Position = UDim2.new(0, 0, 1, -2)
+    progressBar.BackgroundColor3 = Color3.fromRGB(80, 80, 80)
+    progressBar.BorderSizePixel = 0
+    progressBar.ZIndex = frame.ZIndex + 1
+    progressBar.Parent = frame
+    
+    local progressFill = Instance.new("Frame")
+    progressFill.Name = "ProgressFill"
+    progressFill.Size = UDim2.new(1, 0, 1, 0)
+    progressFill.BackgroundColor3 = color
+    progressFill.BorderSizePixel = 0
+    progressFill.ZIndex = frame.ZIndex + 2
+    progressFill.Parent = progressBar
+    
+    local progressCorner = Instance.new("UICorner")
+    progressCorner.CornerRadius = UDim.new(1, 0)
+    progressCorner.Parent = progressFill
+
+    -- Glow effect
+    local glow = Instance.new("ImageLabel")
+    glow.Name = "Glow"
+    glow.Image = "rbxassetid://5028857084"
+    glow.ImageColor3 = color
+    glow.ImageTransparency = 1
+    glow.ScaleType = Enum.ScaleType.Slice
+    glow.SliceCenter = Rect.new(24, 24, 24, 24)
+    glow.Size = UDim2.new(1, 40, 1, 40)
+    glow.Position = UDim2.new(0.5, -20, 0.5, -20)
+    glow.AnchorPoint = Vector2.new(0.5, 0.5)
+    glow.BackgroundTransparency = 1
+    glow.ZIndex = frame.ZIndex - 1
+    glow.Parent = frame
+
+    -- Ripple effect
+    local ripple = Instance.new("Frame")
+    ripple.Name = "Ripple"
+    ripple.Size = UDim2.new(0, 0, 0, 0)
+    ripple.Position = UDim2.new(0.5, 0, 0.5, 0)
+    ripple.AnchorPoint = Vector2.new(0.5, 0.5)
+    ripple.BackgroundColor3 = Color3.new(1, 1, 1)
+    ripple.BackgroundTransparency = 0.9
+    ripple.ZIndex = frame.ZIndex + 2
+    local rippleCorner = Instance.new("UICorner")
+    rippleCorner.CornerRadius = UDim.new(1, 0)
+    rippleCorner.Parent = ripple
+    ripple.Parent = frame
+
+    -- Pulse animation for accent line
+    local pulseConnection
+    local function startPulse()
+        playSound("NotificationPulse")
+        
+        local targetColor = Color3.new(color.R * 1.2, color.G * 1.2, color.B * 1.2)
+        local pulseIn = TweenService:Create(accent, TweenInfo.new(0.8, Enum.EasingStyle.Quad, Enum.EasingDirection.InOut, -1, true), {
+            BackgroundColor3 = targetColor
+        })
+        pulseIn:Play()
+    end
+
+    -- Animation sequences
+    local function playEntranceAnimations()
+        -- Slide in animation with bounce
+        local slideIn = TweenService:Create(frame, TweenInfo.new(ANIMATION_DURATION, Enum.EasingStyle.Back, Enum.EasingDirection.Out), {
+            Position = UDim2.new(1, -10, 0.85, 0),
+            BackgroundTransparency = 0.1
+        })
+        
+        -- Shadow pop effect
+        local shadowPop = TweenService:Create(shadow, TweenInfo.new(ANIMATION_DURATION * 0.6, Enum.EasingStyle.Back, Enum.EasingDirection.Out), {
+            ImageTransparency = 0.6,
+            Size = UDim2.new(1, 30, 1, 30),
+            Position = UDim2.new(0, -15, 0, -15)
+        })
+        
+        -- Glow effect
+        local glowFadeIn = TweenService:Create(glow, TweenInfo.new(ANIMATION_DURATION, Enum.EasingStyle.Quad), {
+            ImageTransparency = 0.8
+        })
+        
+        -- Ripple effect
+        local rippleExpand = TweenService:Create(ripple, TweenInfo.new(ANIMATION_DURATION * 0.6, Enum.EasingStyle.Quad), {
+            Size = UDim2.new(2, 0, 2, 0),
+            BackgroundTransparency = 1
+        })
+        
+        -- Content fade in
+        local fadeIn = TweenService:Create(titleLabel, TweenInfo.new(ANIMATION_DURATION * 0.8, Enum.EasingStyle.Quad), {
+            TextTransparency = 0
+        })
+        local fadeIn2 = TweenService:Create(messageLabel, TweenInfo.new(ANIMATION_DURATION * 0.8, Enum.EasingStyle.Quad), {
+            TextTransparency = 0
+        })
+        local fadeIn3 = TweenService:Create(closeButton, TweenInfo.new(ANIMATION_DURATION * 0.8, Enum.EasingStyle.Quad), {
+            ImageTransparency = 0
+        })
+        
+        -- Accent line animation
+        local accentGrow = TweenService:Create(accent, TweenInfo.new(ANIMATION_DURATION * 0.8, Enum.EasingStyle.Back, Enum.EasingDirection.Out), {
+            Size = UDim2.new(1, 0, 0, 2)
+        })
+        
+        -- Play animations
+        slideIn:Play()
+        shadowPop:Play()
+        rippleExpand:Play()
+        glowFadeIn:Play()
+        
+        task.wait(ANIMATION_DURATION * 0.1)
+        accentGrow:Play()
+        
+        task.wait(ANIMATION_DURATION * 0.15)
+        fadeIn:Play()
+        
+        task.wait(ANIMATION_DURATION * 0.05)
+        fadeIn2:Play()
+        
+        task.wait(ANIMATION_DURATION * 0.05)
+        fadeIn3:Play()
+        
+        -- Start pulse animation after everything is shown
+        task.delay(ANIMATION_DURATION * 0.6, startPulse)
+    end
+
+    -- Hover effects
+    local function setupHoverEffects()
+        local hoverScale = 1.02
+        
+        frame.MouseEnter:Connect(function()
+            playSound("NotificationHover")
+            
+            TweenService:Create(frame, TweenInfo.new(0.2), {
+                Size = UDim2.new(NOTIFICATION_WIDTH * hoverScale, 0, 0, NOTIFICATION_HEIGHT * hoverScale)
+            }):Play()
+            TweenService:Create(shadow, TweenInfo.new(0.2), {
+                Size = UDim2.new(1, 30 * hoverScale, 1, 30 * hoverScale),
+                Position = UDim2.new(0, -15 * hoverScale, 0, -15 * hoverScale)
+            }):Play()
+        end)
+        
+        frame.MouseLeave:Connect(function()
+            TweenService:Create(frame, TweenInfo.new(0.2), {
+                Size = UDim2.new(NOTIFICATION_WIDTH, 0, 0, NOTIFICATION_HEIGHT)
+            }):Play()
+            TweenService:Create(shadow, TweenInfo.new(0.2), {
+                Size = UDim2.new(1, 30, 1, 30),
+                Position = UDim2.new(0, -15, 0, -15)
+            }):Play()
+        end)
+
+        -- Close button hover effects
+        closeButton.MouseEnter:Connect(function()
+            playSound("NotificationHover")
+            
+            TweenService:Create(closeButton, TweenInfo.new(0.1), {
+                ImageColor3 = Color3.new(1, 1, 1),
+                Rotation = 90,
+                Size = UDim2.new(0, 22, 0, 22),
+                Position = UDim2.new(1, -26, 0, 5)
+            }):Play()
+        end)
+        
+        closeButton.MouseLeave:Connect(function()
+            TweenService:Create(closeButton, TweenInfo.new(0.1), {
+                ImageColor3 = Color3.fromRGB(180, 180, 180),
+                Rotation = 0,
+                Size = UDim2.new(0, 20, 0, 20),
+                Position = UDim2.new(1, -25, 0, 6)
+            }):Play()
+        end)
+    end
+
+    -- Close functionality
+    local closing = false
+    local function close()
+        if closing then return end
+        closing = true
+        
+        playSound("NotificationDisappear")
+        
+        -- Stop pulse animation
+        if pulseConnection then
+            pulseConnection:Disconnect()
+        end
+        
+        -- Create close ripple
+        local closeRipple = ripple:Clone()
+        closeRipple.BackgroundTransparency = 0.95
+        closeRipple.Size = UDim2.new(0, 0, 0, 0)
+        closeRipple.Position = UDim2.new(
+            UserInputService:GetMouseLocation().X / frame.AbsoluteSize.X,
+            0,
+            (UserInputService:GetMouseLocation().Y - frame.AbsolutePosition.Y) / frame.AbsoluteSize.Y,
+            0
+        )
+        closeRipple.AnchorPoint = Vector2.new(0.5, 0.5)
+        closeRipple.Parent = frame
+        
+        local rippleOut = TweenService:Create(closeRipple, TweenInfo.new(0.6, Enum.EasingStyle.Quad), {
+            Size = UDim2.new(2, 0, 2, 0),
+            BackgroundTransparency = 1
+        })
+        rippleOut:Play()
+        rippleOut.Completed:Connect(function()
+            closeRipple:Destroy()
+        end)
+        
+        -- Shake effect
+        local shakeOffset = 5
+        for i = 1, 3 do
+            TweenService:Create(frame, TweenInfo.new(0.05, Enum.EasingStyle.Linear), {
+                Position = UDim2.new(1, -10 + shakeOffset, 0.85, 0)
+            }):Play()
+            task.wait(0.05)
+            TweenService:Create(frame, TweenInfo.new(0.05, Enum.EasingStyle.Linear), {
+                Position = UDim2.new(1, -10 - shakeOffset, 0.85, 0)
+            }):Play()
+            task.wait(0.05)
+            shakeOffset = shakeOffset * 0.6
+        end
+        
+        -- Fade out content
+        local fadeOut = TweenService:Create(titleLabel, TweenInfo.new(0.2, Enum.EasingStyle.Quad), {
+            TextTransparency = 1
+        })
+        local fadeOut2 = TweenService:Create(messageLabel, TweenInfo.new(0.2, Enum.EasingStyle.Quad), {
+            TextTransparency = 1
+        })
+        local fadeOut3 = TweenService:Create(closeButton, TweenInfo.new(0.2, Enum.EasingStyle.Quad), {
+            ImageTransparency = 1
+        })
+        
+        fadeOut:Play()
+        fadeOut2:Play()
+        fadeOut3:Play()
+        
+        -- Slide out frame
+        task.wait(0.15)
+        local slideOut = TweenService:Create(frame, TweenInfo.new(0.3, Enum.EasingStyle.Back, Enum.EasingDirection.In), {
+            Position = UDim2.new(1, 10, 0.85, 0),
+            BackgroundTransparency = 0.8
+        })
+        
+        -- Shrink accent line
+        local accentShrink = TweenService:Create(accent, TweenInfo.new(0.2, Enum.EasingStyle.Quad), {
+            Size = UDim2.new(0, 0, 0, 2)
+        })
+        
+        -- Shadow fade out
+        local shadowFadeOut = TweenService:Create(shadow, TweenInfo.new(0.3, Enum.EasingStyle.Quad), {
+            ImageTransparency = 0.9,
+            Size = UDim2.new(1, 20, 1, 20),
+            Position = UDim2.new(0, -10, 0, -10)
+        })
+        
+        -- Glow fade out
+        local glowFadeOut = TweenService:Create(glow, TweenInfo.new(0.3, Enum.EasingStyle.Quad), {
+            ImageTransparency = 1
+        })
+        
+        slideOut:Play()
+        accentShrink:Play()
+        shadowFadeOut:Play()
+        glowFadeOut:Play()
+        
+        slideOut.Completed:Wait()
+        frame:Destroy()
+        isShowingNotification = false
+        showNextNotification()
+    end
+
+    closeButton.MouseButton1Click:Connect(function()
+        playSound("NotificationClick")
+        close()
+    end)
+
+    -- Progress bar animation
+    local progressTween = TweenService:Create(progressFill, TweenInfo.new(duration, Enum.EasingStyle.Linear), {
+        Size = UDim2.new(0, 0, 1, 0)
+    })
+    progressTween:Play()
+
+    -- Auto-close after duration
+    task.delay(duration, function()
+        close()
+    end)
+
+    -- Play entrance animations
+    playEntranceAnimations()
+    setupHoverEffects()
+end
+
+-- Queue system function
+function queueNotification(title, message, duration, color)
+    table.insert(notificationQueue, {
+        title = title,
+        message = message,
+        duration = duration or DEFAULT_DURATION,
+        color = color or DEFAULT_COLOR
+    })
+    
+    if not isShowingNotification then
+        showNextNotification()
+    end
+end
+
+-- Example usage
+queueNotification("Made By Hmmm5650", "Script Started", 3, Color3.fromRGB(161, 165, 162))
+
+local Luna = loadstring(game:HttpGet("https://raw.githubusercontent.com/Nebula-Softworks/Luna-Interface-Suite/refs/heads/main/source.lua", true))()
+local Window = Luna:CreateWindow({
+    Name = "SilverWare🍴",
+    Subtitle = "(v1.9) [ Only For Mobile ] ", -- VZ
+    LogoID = "98445694743887",
+    LoadingEnabled = false,
+    LoadingTitle = "Starting SilverWare🍴",
+    LoadingSubtitle = "[ Ver, 1.3 ]",
+    ConfigSettings = {
+        RootFolder = nil,
+        ConfigFolder = "SliverWareConfig"
+    },
+    KeySystem = false
+})
+
+Window:CreateHomeTab({
+	SupportedExecutors = {}, -- A Table Of Executors Your Script Supports. Add strings of the executor names for each executor.
+	DiscordInvite = "I don't have discord", -- The Discord Invite Link. Do Not Include discord.gg/ | Only Include the code.
+	Icon = 1, -- By Default, The Icon Is The Home Icon. If You would like to change it to dashboard, replace the interger with 2
+})
+
+local Tab = Window:CreateTab({
+	Name = "PlayerList",
+	Icon = "group",
+	ImageSource = "Material",
+	ShowTitle = true -- This will determine whether the big header text in the tab will show
+})
+
+local Button = Tab:CreateButton({
+    Name = "Copy Player Username",
+    Description = "Click to show player list",
+    Callback = function()
+        -- Clear any existing buttons (if needed)
+        -- (Depends on your UI library, some may require manual cleanup)
+        
+        -- Get all players
+        local players = game:GetService("Players"):GetPlayers()
+        
+        -- Create a button for each player
+        for _, player in ipairs(players) do
+            Tab:CreateButton({
+                Name = player.Name,
+                Description = "Click to copy username",
+                Callback = function()
+                    -- Copy username to clipboard
+                    if setclipboard then
+                        setclipboard(player.Name)
+                    else
+                        -- Fallback for non-exploit environments (Roblox Studio)
+                        print("[Copied] " .. player.Name)
+                    end
+                    
+                    -- Optional: Notify the user
+                    game:GetService("StarterGui"):SetCore("SendNotification", {
+                        Title = "Copied!",
+                        Text = player.Name .. " copied to clipboard",
+                        Duration = 3,
+                    })
+                end
             })
-            acStrength = acStrength + 5
-            totalPossibleStrength = totalPossibleStrength + 6
-        end
-    end)
-    
-    -- Check for unusual script behavior
-    pcall(function()
-        local scripts = game:GetService("ScriptContext"):GetScripts()
-        for _, script in ipairs(scripts) do
-            if script.ClassName == "LocalScript" and script:IsDescendantOf(game:GetService("Players").LocalPlayer) == false then
-                table.insert(foundAC, {
-                    name = "Suspicious LocalScript",
-                    path = script:GetFullName(),
-                    type = "LocalScript",
-                    strength = 4,
-                    detection = "Unusual Behavior"
-                })
-                acStrength = acStrength + 4
-                totalPossibleStrength = totalPossibleStrength + 6
-            end
-        end
-    end)
-    
-    -- Check for known exploit detection patterns
-    pcall(function()
-        local players = game:GetService("Players")
-        if players:FindFirstChild("LocalPlayer") then
-            local playerScripts = players.LocalPlayer:FindFirstChild("PlayerScripts")
-            if playerScripts then
-                for _, script in ipairs(playerScripts:GetDescendants()) do
-                    if script:IsA("LocalScript") then
-                        local source = ""
-                        pcall(function()
-                            source = script.Source
-                        end)
-                        
-                        if source and (string.find(source, "exploit") or string.find(source, "cheat") or 
-                           string.find(source, "inject") or string.find(source, "hook")) then
-                            table.insert(foundAC, {
-                                name = "Exploit Detection",
-                                path = script:GetFullName(),
-                                type = "LocalScript",
-                                strength = 5,
-                                detection = "Pattern Match"
-                            })
-                            acStrength = acStrength + 5
-                            totalPossibleStrength = totalPossibleStrength + 6
-                        end
-                    end
-                end
-            end
-        end
-    end)
-    
-    -- Determine AC level
-    local acPercentage = totalPossibleStrength > 0 and (acStrength / totalPossibleStrength) * 100 or 0
-    local acLevel, acColor
-    
-    if #foundAC == 0 then
-        acLevel = "NONE"
-        acColor = Color3.fromRGB(255, 50, 50) -- Red
-    elseif acPercentage < 25 then
-        acLevel = "LOW"
-        acColor = Color3.fromRGB(255, 165, 0) -- Orange
-    elseif acPercentage < 50 then
-        acLevel = "MEDIUM"
-        acColor = Color3.fromRGB(255, 255, 0) -- Yellow
-    elseif acPercentage < 75 then
-        acLevel = "HIGH"
-        acColor = Color3.fromRGB(50, 255, 50) -- Green
-    else
-        acLevel = "EXTREME"
-        acColor = Color3.fromRGB(150, 50, 255) -- Purple
-    end
-    
-    return {
-        level = acLevel,
-        strength = acStrength,
-        maxStrength = totalPossibleStrength,
-        percentage = acPercentage,
-        color = acColor,
-        foundAC = foundAC,
-        components = #foundAC,
-        lastUpdate = os.time()
-    }
-end
-
--- Run initial AntiCheat detection
-local acData = detectAntiCheat()
-local acLevel = acData.level
-local acColor = acData.color
-
--- Update label with AC info
-acLabel.Text = acLevel.." AC | "..math.floor(acData.percentage).."% | "..gameName
-acLabel.TextColor3 = acColor
-
--- Set parameters based on AC level
-local frequency, amplitude, speed, counterSpeed, randomness
-if acLevel == "NONE" then
-    frequency = 0.5
-    amplitude = isPC and 20 or 15
-    speed = 0.3
-    counterSpeed = 0.5
-    randomness = 0
-elseif acLevel == "LOW" then
-    frequency = 1
-    amplitude = isPC and 40 or 30
-    speed = 0.8
-    counterSpeed = 0.8
-    randomness = 0.2
-elseif acLevel == "MEDIUM" then
-    frequency = 1.5
-    amplitude = isPC and 60 or 40
-    speed = 1.2
-    counterSpeed = 1.2
-    randomness = 0.4
-elseif acLevel == "HIGH" then
-    frequency = 2
-    amplitude = isPC and 80 or 50
-    speed = 1.6
-    counterSpeed = 1.6
-    randomness = 0.6
-else -- EXTREME
-    frequency = 2.5
-    amplitude = isPC and 100 or 60
-    speed = 2
-    counterSpeed = 2
-    randomness = 0.8
-end
-
--- Smoother visualization drawing function
-local lastPoints = {}
-local function drawVisualization(time)
-    local width = canvas.AbsoluteSize.X
-    local height = canvas.AbsoluteSize.Y
-    local centerY = height / 2
-    
-    -- Clear previous drawings but keep grid
-    for _, child in ipairs(canvas:GetChildren()) do
-        if child:IsA("Frame") and child ~= gridPattern then
-            child:Destroy()
         end
     end
-    
-    if acLevel == "NONE" then
-        -- Draw flat line with slight noise for no AC
-        for x = 0, width, wavePointDensity do
-            local y = centerY + math.random(-3, 3)
-            local point = Instance.new("Frame")
-            point.Size = UDim2.new(0, 2, 0, 2)
-            point.Position = UDim2.new(0, x, 0, y - 1)
-            point.BackgroundColor3 = acColor
-            point.BorderSizePixel = 0
-            point.ZIndex = 2
-            point.Parent = canvas
-        end
-    else
-        -- Create smoother wave by interpolating between points
-        local points = {}
-        for x = 0, width, wavePointDensity do
-            -- Base sine wave
-            local normalizedX = x / width * 2 * math.pi
-            local baseY = math.sin(normalizedX * frequency + time * speed) * amplitude
-            
-            -- Add secondary wave for complexity
-            local secondaryY = math.sin(normalizedX * frequency * 1.3 + time * speed * 1.7) * (amplitude * 0.3)
-            
-            -- Add controlled randomness based on AC level
-            local randomY = math.random(-amplitude * randomness, amplitude * randomness) * 0.5
-            if lastPoints[x] then
-                randomY = (randomY + lastPoints[x].randomY) / 2 -- Average with previous frame
+})
+
+Tab:CreateDivider()
+
+local Tab = Window:CreateTab({
+    Name = "FpsBooster",
+    Icon = "build",
+    ImageSource = "Material",
+    ShowTitle = true
+})
+
+-- In your Toggle callback:
+local Toggle = Tab:CreateToggle({
+    Name = "Show FPSCounter",
+    Description = nil,
+    CurrentValue = false,
+    Callback = function(Value)
+        if Value then
+            fpsGui.Enabled = true
+            -- Only create a new connection if one doesn't exist
+            if not fpsConnection then
+                fpsConnection = RunService.RenderStepped:Connect(updateFPS)
             end
-            
-            -- Combine all effects
-            local y = centerY + baseY + secondaryY + randomY
-            
-            -- Store point data for smoothing
-            points[x] = {
-                x = x,
-                y = y,
-                randomY = randomY
+        else
+            fpsGui.Enabled = false
+            -- Disconnect the connection if it exists
+            if fpsConnection then
+                fpsConnection:Disconnect()
+                fpsConnection = nil
+            end
+        end
+    end
+}, "FpsCounterToggle")
+
+Tab:CreateDivider()
+
+-- Main AntiLag Button
+local Button = Tab:CreateButton({
+    Name = "AntiLag",
+    Description = "Optimizes game performance with multiple tweaks",
+    Callback = function()
+        loadstring(game:HttpGet("https://pastebin.com/raw/zJztwUg1", true))()
+    end
+})
+
+local Button = Tab:CreateButton({
+    Name = "AntiLag 2",
+    Description = "Optimizes game performance with multiple tweaks",
+    Callback = function()
+        loadstring(game:HttpGet("https://pastebin.com/raw/8YZ2cc6V"))()
+    end
+})
+
+Tab:CreateDivider()
+
+local Button = Tab:CreateButton({
+    Name = "Memory Cleaner",
+    Description = "Depends on you're exec.",
+    Callback = function()
+        game:GetService("StarterGui"):SetCore("DevConsoleVisible",true)
+        local function formatMemory(amount)
+            if amount < 1024 then
+                return amount .. " KB"
+            elseif amount < 1024 * 1024 then
+                return math.floor(amount / 1024) .. " MB"
+            else
+                return math.floor(amount / (1024 * 1024)) .. " GB"
+            end
+        end
+
+        warn("[Memory Optimizer] Scanning memory...")
+        task.wait(0.3)
+        warn("[Memory Optimizer] Closing unused connections...")
+        task.wait(0.1)
+        warn("[Memory Optimizer] Clearing cached assets...")
+        task.wait(0.1)
+        warn("[Memory Optimizer] Optimizing garbage collection...")
+        task.wait(0.2)
+        memCleaner()
+    end
+})
+
+-- Remove Fog Toggle
+local RemoveFogToggle = Tab:CreateToggle({
+    Name = "Remove Fog",
+    Description = "Disables all fog effects in the game",
+    CurrentValue = false,
+    Callback = function(Value)
+        if Value then
+            game:GetService("Lighting").FogEnd = 9e9
+            game:GetService("Lighting").FogStart = 9e9
+        else
+            game:GetService("Lighting").FogEnd = 1000
+            game:GetService("Lighting").FogStart = 0
+        end
+    end
+})
+
+-- Low Quality Textures Toggle
+local LowQualityToggle = Tab:CreateToggle({
+    Name = "Low Quality Textures",
+    Description = "Reduces texture quality for better performance",
+    CurrentValue = false,
+    Callback = function(Value)
+        if Value then
+            settings().Rendering.QualityLevel = 1
+        else
+            settings().Rendering.QualityLevel = 21
+        end
+    end
+})
+
+-- Disable Shadows Toggle
+local ShadowsToggle = Tab:CreateToggle({
+    Name = "Disable Shadows",
+    Description = "Turns off all shadow effects",
+    CurrentValue = false,
+    Callback = function(Value)
+        if Value then
+            game:GetService("Lighting").GlobalShadows = false
+        else
+            game:GetService("Lighting").GlobalShadows = true
+        end
+    end
+})
+
+-- Remove Particles Toggle
+local ParticlesToggle = Tab:CreateToggle({
+    Name = "Remove Particles",
+    Description = "Disables all particle effects",
+    CurrentValue = false,
+    Callback = function(Value)
+        for _, v in pairs(workspace:GetDescendants()) do
+            if v:IsA("ParticleEmitter") then
+                v.Enabled = not Value
+            end
+        end
+    end
+})
+
+-- Disable Terrain Water Toggle
+local WaterToggle = Tab:CreateToggle({
+    Name = "Disable Terrain Water",
+    Description = "Removes water effects from terrain",
+    CurrentValue = false,
+    Callback = function(Value)
+        workspace.Terrain.WaterWaveSize = Value and 0 or 0.1
+        workspace.Terrain.WaterWaveSpeed = Value and 0 or 10
+        workspace.Terrain.WaterReflectance = Value and 0 or 0.5
+    end
+})
+
+-- Reduce Render Distance Toggle
+local RenderDistanceToggle = Tab:CreateToggle({
+    Name = "Reduce Render Distance",
+    Description = "Lowers how far you can see objects",
+    CurrentValue = false,
+    Callback = function(Value)
+        local camera = workspace.CurrentCamera
+        if camera and camera:FindFirstChild("CameraSubject") then
+            camera.CameraSubject.Distance = Value and 50 or 500
+        end
+    end
+})
+
+-- Disable Post-Processing Toggle
+local PostProcessingToggle = Tab:CreateToggle({
+    Name = "Disable Post-Processing",
+    Description = "Turns off bloom, depth of field, etc.",
+    CurrentValue = false,
+    Callback = function(Value)
+        local lighting = game:GetService("Lighting")
+        
+        local function toggleEffect(effectName)
+            local effect = lighting:FindFirstChild(effectName)
+            if effect then
+                effect.Enabled = not Value
+            end
+        end
+
+        toggleEffect("Bloom")
+        toggleEffect("Blur")
+        toggleEffect("ColorCorrection")
+        toggleEffect("DepthOfField")
+        toggleEffect("SunRays")
+    end
+})
+
+Tab:CreateDivider()
+
+local Button = Tab:CreateButton({
+	Name = "Reset FpsCap",
+	Description = "sets FpsCap to 60", -- Creates A Description For Users to know what the button does (looks bad if you use it all the time),
+    	Callback = function()
+         setfpscap(60)
+    	end
+})
+
+local Slider = Tab:CreateSlider({
+	Name = "SetFpsCap",
+	Range = {0, 9000}, -- The Minimum And Maximum Values Respectively
+	Increment = 5, -- Basically The Changing Value/Rounding Off
+	CurrentValue = 60, -- The Starting Value
+    	Callback = function(Value)
+       	 setfpscap(Value)
+    	end
+}, "FpsCapSlider") -- A flag is the identifier for the configuration file, make sure every element has a different flag if you're using configuration saving to ensure no overlaps
+
+-- Create the Visuals tab
+local Tab = Window:CreateTab({
+    Name = "Visuals",
+    Icon = "visibility",
+    ImageSource = "Material",
+    ShowTitle = true
+})
+
+local HighlightToggle = Tab:CreateToggle({
+    Name = "Highlight ESP",
+    Description = "Highlights player characters",
+    CurrentValue = highlightEspEnabled,
+    Callback = function(Value)
+        highlightEspEnabled = Value
+        toggleEsp()
+    end
+}, "HighlightToggle")
+
+local NameToggle = Tab:CreateToggle({
+    Name = "Name ESP",
+    Description = "Shows player names above characters",
+    CurrentValue = nameEspEnabled,
+    Callback = function(Value)
+        nameEspEnabled = Value
+        toggleEsp()
+    end
+}, "NameToggle")
+
+local BoxToggle = Tab:CreateToggle({
+    Name = "Box ESP",
+    Description = "Draws boxes around player characters",
+    CurrentValue = boxEspEnabled,
+    Callback = function(Value)
+        boxEspEnabled = Value
+        toggleEsp()
+    end
+}, "BoxToggle")
+
+local DistanceToggle = Tab:CreateToggle({
+    Name = "Distance ESP",
+    Description = "Shows distance to players",
+    CurrentValue = distanceEspEnabled,
+    Callback = function(Value)
+        distanceEspEnabled = Value
+        toggleEsp()
+    end
+}, "DistanceToggle")
+
+local HealthToggle = Tab:CreateToggle({
+    Name = "Health ESP",
+    Description = "Shows health and changes color based on health",
+    CurrentValue = healthEspEnabled,
+    Callback = function(Value)
+        healthEspEnabled = Value
+        toggleEsp()
+    end
+}, "HealthToggle")
+
+Tab:CreateDivider()
+
+local ColorPicker = Tab:CreateColorPicker({
+    Name = "ESP Color",
+    Description = "Color for ESP elements",
+    Color = espColor,
+    Callback = function(Value)
+        updateEspColor(Value)
+    end
+}, "EspColorPicker")
+
+local MaxDistanceInput = Tab:CreateInput({
+    Name = "Max Distance",
+    Description = "Maximum distance to show ESP (in studs)",
+    PlaceholderText = tostring(maxDistance),
+    CurrentValue = tostring(maxDistance),
+    Numeric = true,
+    Callback = function(Text)
+        local num = tonumber(Text)
+        if num then
+            maxDistance = num
+            toggleEsp()
+        end
+    end
+}, "MaxDistanceInput")
+
+local ClearEspButton = Tab:CreateButton({
+    Name = "Clear All ESP",
+    Description = "Removes all ESP elements",
+    Callback = function()
+        clearEsp()
+    end
+}, "ClearEspButton")
+
+local Slider = Tab:CreateSlider({
+    Name = "FOV Slider",
+    Range = {0, 120},
+    Increment = 1,
+    CurrentValue = 70,
+    Callback = function(Value)
+        game.Workspace.CurrentCamera.FieldOfView = Value
+    end
+}, "FOVSlider")
+
+local Tab = Window:CreateTab({
+    Name = "Aimlock",
+    Icon = "gps_fixed",
+    ImageSource = "Material",
+    ShowTitle = true
+})
+
+local Toggle = Tab:CreateToggle({
+    Name = "ShowAimlock",
+    Description = "Boots Up Aimlock",
+    CurrentValue = false,
+    Callback = function(Value)
+        -- Store references to all the UI elements
+        if not _G.AimlockUI then
+            _G.AimlockUI = {
+                Inputs = {},
+                ColorPicker = nil,
+                ScreenGui = nil,
+                AimAssist = {
+                    Active = false,
+                    Smoothness = 0.3,
+                    FOVSize = 150,
+                    MaxDistance = 1000,
+                    TargetColor = Color3.fromRGB(255, 0, 0),
+                    TargetTransparency = 0.7,
+                    HighlightTarget = false,
+                    CurrentHighlight = nil,
+                    Enable360 = false
+                }
             }
         end
         
-        -- Draw smoothed wave
-        for x, pointData in pairs(points) do
-            -- Create point with color variation
-            local point = Instance.new("Frame")
-            point.Size = UDim2.new(0, 3, 0, 3)
-            point.Position = UDim2.new(0, x, 0, pointData.y - 1.5)
-            
-            -- Smoother color variation
-            local colorVariation = math.sin(time * 0.5 + x * 0.01) * 0.2
-            point.BackgroundColor3 = Color3.new(
-                math.clamp(acColor.R + colorVariation, 0, 1),
-                math.clamp(acColor.G + colorVariation * 0.5, 0, 1),
-                math.clamp(acColor.B - colorVariation * 0.2, 0, 1)
-            )
-            
-            point.BorderSizePixel = 0
-            point.ZIndex = 2
-            point.Parent = canvas
-            
-            -- Add occasional sparkles for high/extreme AC
-            if (acLevel == "HIGH" or acLevel == "EXTREME") and math.random() < 0.02 then
-                local sparkle = Instance.new("Frame")
-                sparkle.Size = UDim2.new(0, 4, 0, 4)
-                sparkle.Position = UDim2.new(0, x + math.random(-5, 5), 0, pointData.y + math.random(-5, 5))
-                sparkle.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
-                sparkle.BorderSizePixel = 0
-                sparkle.ZIndex = 3
-                sparkle.Parent = canvas
-                
-                -- Animate sparkle
-                game:GetService("TweenService"):Create(
-                    sparkle,
-                    TweenInfo.new(0.3, Enum.EasingStyle.Quad, Enum.EasingDirection.Out),
-                    {Size = UDim2.new(0, 0, 0, 0), BackgroundTransparency = 1}
-                ):Play()
-                
-                delay(0.3, function()
-                    if sparkle then
-                        sparkle:Destroy()
+        if Value then
+            -- Create the aimlock GUI if it doesn't exist
+            if not _G.AimlockUI.ScreenGui or not _G.AimlockUI.ScreenGui.Parent then
+                -- Get required services
+                local Players = game:GetService("Players")
+                local RunService = game:GetService("RunService")
+                local UserInputService = game:GetService("UserInputService")
+                local TweenService = game:GetService("TweenService")
+
+                -- Get local player
+                local localPlayer = Players.LocalPlayer
+                local playerGui = localPlayer:WaitForChild("PlayerGui")
+
+                -- Create UI elements
+                local screenGui = Instance.new("ScreenGui")
+                screenGui.Name = "AimLockUiLuau"
+                screenGui.IgnoreGuiInset = true
+                screenGui.ResetOnSpawn = false
+                screenGui.Parent = playerGui
+                _G.AimlockUI.ScreenGui = screenGui
+
+                -- Control panel
+                local controlPanel = Instance.new("Frame")
+                controlPanel.Size = UDim2.new(0, 120, 0, 50)
+                controlPanel.Position = UDim2.new(0, 60, 0, 60)
+                controlPanel.BackgroundColor3 = Color3.fromRGB(109, 110, 108)
+                controlPanel.BackgroundTransparency = 0.3
+                controlPanel.Active = true
+                controlPanel.Parent = screenGui
+
+                -- Round corners
+                local corner = Instance.new("UICorner")
+                corner.CornerRadius = UDim.new(0.3, 0)
+                corner.Parent = controlPanel
+
+                -- Toggle button
+                local toggleButton = Instance.new("TextButton")
+                toggleButton.Size = UDim2.new(1, 0, 1, 0)
+                toggleButton.Text = "AimLock: OFF"
+                toggleButton.BackgroundTransparency = 1
+                toggleButton.TextColor3 = Color3.fromRGB(255, 255, 255)
+                toggleButton.TextSize = 14
+                toggleButton.Font = Enum.Font.Gotham
+                toggleButton.Parent = controlPanel
+
+                -- Highlight when active
+                local outline = Instance.new("UIStroke")
+                outline.Thickness = 2
+                outline.Color = Color3.fromRGB(0, 255, 0)
+                outline.Enabled = false
+                outline.Parent = controlPanel
+
+                -- Target indicator
+                local targetIndicator = Instance.new("Frame")
+                targetIndicator.Size = UDim2.new(0, _G.AimlockUI.AimAssist.FOVSize, 0, _G.AimlockUI.AimAssist.FOVSize)
+                targetIndicator.Position = UDim2.new(0.5, 0, 0.5, 0)
+                targetIndicator.AnchorPoint = Vector2.new(0.5, 0.5)
+                targetIndicator.BackgroundTransparency = 1
+                targetIndicator.Parent = screenGui
+
+                local targetOutline = Instance.new("UIStroke")
+                targetOutline.Thickness = 2
+                targetOutline.Color = _G.AimlockUI.AimAssist.TargetColor
+                targetOutline.Transparency = _G.AimlockUI.AimAssist.TargetTransparency
+                targetOutline.Parent = targetIndicator
+
+                local targetCorner = Instance.new("UICorner")
+                targetCorner.CornerRadius = UDim.new(1, 0)
+                targetCorner.Parent = targetIndicator
+
+                -- Function to highlight a player
+                local function highlightPlayer(character, enable)
+                    if not character then return end
+                    
+                    if _G.AimlockUI.AimAssist.CurrentHighlight and _G.AimlockUI.AimAssist.CurrentHighlight.Parent then
+                        local existingHighlight = _G.AimlockUI.AimAssist.CurrentHighlight:FindFirstChild("AimlockHighlight")
+                        if existingHighlight then
+                            existingHighlight:Destroy()
+                        end
+                    end
+                    
+                    if enable then
+                        local highlight = Instance.new("Highlight")
+                        highlight.Name = "AimlockHighlight"
+                        highlight.FillColor = Color3.fromRGB(255, 0, 0)
+                        highlight.OutlineColor = Color3.fromRGB(255, 255, 0)
+                        highlight.FillTransparency = 0.5
+                        highlight.OutlineTransparency = 0
+                        highlight.Parent = character
+                        
+                        _G.AimlockUI.AimAssist.CurrentHighlight = character
+                    else
+                        _G.AimlockUI.AimAssist.CurrentHighlight = nil
+                    end
+                end
+
+                -- Toggle functionality
+                local function updateToggle()
+                    outline.Enabled = _G.AimlockUI.AimAssist.Active
+                    toggleButton.Text = _G.AimlockUI.AimAssist.Active and "AimLock: ON" or "AimLock: OFF"
+                    
+                    local tweenInfo = TweenInfo.new(0.2, Enum.EasingStyle.Quad, Enum.EasingDirection.Out)
+                    local tween = TweenService:Create(
+                        controlPanel,
+                        tweenInfo,
+                        {BackgroundColor3 = _G.AimlockUI.AimAssist.Active and Color3.fromRGB(40, 40, 40) or Color3.fromRGB(30, 30, 30)}
+                    )
+                    tween:Play()
+                end
+
+                toggleButton.MouseButton1Click:Connect(function()
+                    _G.AimlockUI.AimAssist.Active = not _G.AimlockUI.AimAssist.Active
+                    updateToggle()
+                end)
+
+                -- Enemy check function
+                local function isEnemyForAimAssist(player)
+                    if player == localPlayer then return false end
+                    if not player.Character then return false end
+                    
+                    if game:GetService("Teams") and #game:GetService("Teams"):GetTeams() > 1 then
+                        local localTeam = localPlayer.Team
+                        local playerTeam = player.Team
+                        return localTeam ~= nil and playerTeam ~= nil and localTeam ~= playerTeam
+                    else
+                        return true
+                    end
+                end
+
+                -- Visibility check function
+                local function isVisible(targetPosition, character)
+                    local localCharacter = localPlayer.Character
+                    if not localCharacter then return false end
+                    
+                    local rootPart = localCharacter:FindFirstChild("HumanoidRootPart")
+                    if not rootPart then return false end
+                    
+                    local direction = (targetPosition - rootPart.Position).Unit
+                    local ray = Ray.new(rootPart.Position + direction * 2, direction * _G.AimlockUI.AimAssist.MaxDistance)
+                    
+                    local ignoreList = {localCharacter}
+                    local hitPart, hitPosition = workspace:FindPartOnRayWithIgnoreList(ray, ignoreList)
+                    
+                    if hitPart then
+                        local hitCharacter = hitPart:FindFirstAncestorOfClass("Model")
+                        return hitCharacter == character
+                    end
+                    return false
+                end
+
+                -- Target finding function with proper FOV checking
+                local function findBestTarget()
+                    local bestTarget = nil
+                    local closestDistance = math.huge
+                    local localCharacter = localPlayer.Character
+                    
+                    if not localCharacter then return nil end
+                    
+                    local rootPart = localCharacter:FindFirstChild("HumanoidRootPart")
+                    if not rootPart then return nil end
+                    
+                    local camera = workspace.CurrentCamera
+                    if not camera then return nil end
+                    
+                    local targetCenter = targetIndicator.AbsolutePosition + (targetIndicator.AbsoluteSize / 2)
+                    local targetRadius = _G.AimlockUI.AimAssist.FOVSize / 2
+                    
+                    for _, player in pairs(Players:GetPlayers()) do
+                        if isEnemyForAimAssist(player) and player.Character then
+                            local character = player.Character
+                            local humanoid = character:FindFirstChildOfClass("Humanoid")
+                            if humanoid and humanoid.Health <= 0 then continue end
+                            
+                            local enemyRoot = character:FindFirstChild("HumanoidRootPart")
+                            local head = character:FindFirstChild("Head")
+                            
+                            if enemyRoot then
+                                local distanceFromPlayer = (rootPart.Position - enemyRoot.Position).Magnitude
+                                
+                                if _G.AimlockUI.AimAssist.Enable360 then
+                                    if distanceFromPlayer <= _G.AimlockUI.AimAssist.MaxDistance 
+                                       and distanceFromPlayer < closestDistance 
+                                       and isVisible(enemyRoot.Position, character) then
+                                        
+                                        closestDistance = distanceFromPlayer
+                                        bestTarget = {
+                                            player = player,
+                                            root = enemyRoot,
+                                            head = head,
+                                            character = character
+                                        }
+                                    end
+                                else
+                                    local screenPosition, onScreen = camera:WorldToScreenPoint(enemyRoot.Position)
+                                    if onScreen then
+                                        local distanceFromCenter = (Vector2.new(screenPosition.X, screenPosition.Y) - targetCenter).Magnitude
+                                        
+                                        if distanceFromCenter <= targetRadius 
+                                           and distanceFromPlayer <= _G.AimlockUI.AimAssist.MaxDistance 
+                                           and distanceFromCenter < closestDistance 
+                                           and isVisible(enemyRoot.Position, character) then
+                                            
+                                            closestDistance = distanceFromCenter
+                                            bestTarget = {
+                                                player = player,
+                                                root = enemyRoot,
+                                                head = head,
+                                                character = character
+                                            }
+                                        end
+                                    end
+                                end
+                            end
+                        end
+                    end
+                    
+                    return bestTarget
+                end
+
+                -- Aim assist functionality
+                local aimAssistConnection
+                aimAssistConnection = RunService.RenderStepped:Connect(function()
+                    if _G.AimlockUI.AimAssist.Active then
+                        local target = findBestTarget()
+                        
+                        if target and target.root then
+                            local camera = workspace.CurrentCamera
+                            if camera then
+                                local targetPosition = target.head and target.head.Position or target.root.Position
+                                local cameraPosition = camera.CFrame.Position
+                                local targetCFrame = CFrame.new(cameraPosition, targetPosition)
+                                
+                                local lerpValue = _G.AimlockUI.AimAssist.Smoothness
+                                if lerpValue >= 1 then
+                                    lerpValue = 1
+                                end
+                                
+                                camera.CFrame = camera.CFrame:Lerp(targetCFrame, lerpValue)
+                                
+                                targetOutline.Color = Color3.fromRGB(0, 255, 0)
+                                
+                                if _G.AimlockUI.AimAssist.HighlightTarget then
+                                    highlightPlayer(target.character, true)
+                                end
+                            end
+                        else
+                            targetOutline.Color = _G.AimlockUI.AimAssist.TargetColor
+                            
+                            if _G.AimlockUI.AimAssist.HighlightTarget then
+                                highlightPlayer(_G.AimlockUI.AimAssist.CurrentHighlight, false)
+                            end
+                        end
+                    else
+                        if _G.AimlockUI.AimAssist.HighlightTarget and _G.AimlockUI.AimAssist.CurrentHighlight then
+                            highlightPlayer(_G.AimlockUI.AimAssist.CurrentHighlight, false)
+                        end
                     end
                 end)
+
+                -- Draggable UI functionality
+                local isDragging = false
+                local dragStartPosition = Vector2.new(0, 0)
+                local dragStartOffset = UDim2.new(0, 0, 0, 0)
+
+                controlPanel.InputBegan:Connect(function(input)
+                    if input.UserInputType == Enum.UserInputType.MouseButton1 then
+                        isDragging = true
+                        dragStartPosition = input.Position
+                        dragStartOffset = controlPanel.Position
+                        controlPanel.BackgroundTransparency = 0.2
+                    end
+                end)
+
+                controlPanel.InputChanged:Connect(function(input)
+                    if input.UserInputType == Enum.UserInputType.MouseMovement and isDragging then
+                        local dragDelta = input.Position - dragStartPosition
+                        controlPanel.Position = UDim2.new(
+                            dragStartOffset.X.Scale, 
+                            dragStartOffset.X.Offset + dragDelta.X, 
+                            dragStartOffset.Y.Scale, 
+                            dragStartOffset.Y.Offset + dragDelta.Y
+                        )
+                    end
+                end)
+
+                UserInputService.InputEnded:Connect(function(input)
+                    if input.UserInputType == Enum.UserInputType.MouseButton1 then
+                        isDragging = false
+                        controlPanel.BackgroundTransparency = 0.3
+                    end
+                end)
+
+                -- Cleanup when character respawns
+                localPlayer.CharacterAdded:Connect(function()
+                    if not screenGui:IsDescendantOf(playerGui) then
+                        screenGui.Parent = playerGui
+                    end
+                end)
+
+                -- Store references
+                _G.AimlockUI.AimAssist.Connection = aimAssistConnection
+                _G.AimlockUI.AimAssist.TargetIndicator = targetIndicator
+                _G.AimlockUI.AimAssist.TargetOutline = targetOutline
+                _G.AimlockUI.AimAssist.UpdateToggle = updateToggle
+                _G.AimlockUI.AimAssist.HighlightPlayer = highlightPlayer
+            else
+                _G.AimlockUI.ScreenGui.Enabled = true
+                _G.AimlockUI.AimAssist.UpdateToggle()
             end
-        end
-        
-        -- Store points for next frame smoothing
-        lastPoints = points
-        
-        -- Add pulse effect for extreme AC
-        if acLevel == "EXTREME" and math.random() < 0.05 then
-            local pulse = Instance.new("Frame")
-            pulse.Size = UDim2.new(0, 0, 0, 0)
-            pulse.Position = UDim2.new(0.5, 0, 0.5, 0)
-            pulse.AnchorPoint = Vector2.new(0.5, 0.5)
-            pulse.BackgroundColor3 = Color3.fromRGB(255, 50, 255)
-            pulse.BackgroundTransparency = 0.7
-            pulse.BorderSizePixel = 0
-            pulse.ZIndex = 1
-            pulse.Parent = canvas
-            
-            game:GetService("TweenService"):Create(
-                pulse,
-                TweenInfo.new(1, Enum.EasingStyle.Quad, Enum.EasingDirection.Out),
-                {Size = UDim2.new(1, 0, 1, 0), BackgroundTransparency = 1}
-            ):Play()
-            
-            delay(1, function()
-                if pulse then
-                    pulse:Destroy()
-                end
-            end)
-        end
-    end
-end
-
--- Counter update function with realistic progression
-local lastCounterUpdate = 0
-local currentPercentage = 0
-local targetPercentage = acData.percentage
-
-local function updateCounter(time)
-    if time - lastCounterUpdate > (1 / counterSpeed) then
-        -- Smoothly approach the target percentage
-        if currentPercentage < targetPercentage then
-            currentPercentage = math.min(currentPercentage + (math.random() * 5), targetPercentage)
         else
-            currentPercentage = math.max(currentPercentage - (math.random() * 2), targetPercentage)
-        end
-        
-        -- Add small random fluctuations
-        currentPercentage = currentPercentage + math.random(-0.5, 0.5)
-        currentPercentage = math.clamp(currentPercentage, 0, 100)
-        
-        counterLabel.Text = string.format("[%.2f%%]", currentPercentage)
-        lastCounterUpdate = time
-    end
-end
-
--- Animation loop
-local heartbeatConnection
-heartbeatConnection = game:GetService("RunService").Heartbeat:Connect(function(step)
-    local time = tick()
-    drawVisualization(time)
-    updateCounter(time)
-end)
-
-local dropdownFrame = Instance.new("Frame")
-dropdownFrame.Size = UDim2.new(1, -20, 0, 30)
-dropdownFrame.Position = UDim2.new(0, 10, 0, 210)
-dropdownFrame.BackgroundColor3 = Color3.fromRGB(30, 30, 45)
-dropdownFrame.BorderSizePixel = 0
-dropdownFrame.ClipsDescendants = true  -- Add this to prevent content from overflowing
-dropdownFrame.Parent = frame
-
-local dropdownButton = Instance.new("TextButton")
-dropdownButton.Size = UDim2.new(1, 0, 1, 0)
-dropdownButton.Text = "Detected AC Components ("..acData.components..")"
-dropdownButton.TextColor3 = Color3.fromRGB(255, 255, 255)
-dropdownButton.BackgroundColor3 = Color3.fromRGB(40, 40, 60)
-dropdownButton.BorderSizePixel = 0
-dropdownButton.Font = Enum.Font.GothamBold
-dropdownButton.TextSize = 14
-dropdownButton.Parent = dropdownFrame
-
--- Calculate maximum height based on available space (frame height - current position - padding)
-local maxDropdownHeight = guiHeight - 240  -- 210 position + 30 button height + some padding
-
-local dropdownContent = Instance.new("ScrollingFrame")
-dropdownContent.Size = UDim2.new(1, 0, 0, 0)
-dropdownContent.Position = UDim2.new(0, 0, 1, 0)
-dropdownContent.BackgroundColor3 = Color3.fromRGB(25, 25, 40)
-dropdownContent.BorderSizePixel = 0
-dropdownContent.ScrollBarThickness = 5
-dropdownContent.AutomaticCanvasSize = Enum.AutomaticSize.Y
-dropdownContent.ScrollingDirection = Enum.ScrollingDirection.Y
-dropdownContent.Visible = false
-dropdownContent.Parent = dropdownFrame
-
-local dropdownListLayout = Instance.new("UIListLayout")
-dropdownListLayout.Padding = UDim.new(0, 1)
-dropdownListLayout.Parent = dropdownContent
-
--- Populate dropdown with detected AC components
-local function populateDropdown()
-    for _, child in ipairs(dropdownContent:GetChildren()) do
-        if child:IsA("Frame") then
-            child:Destroy()
-        end
-    end
-
-    if #acData.foundAC == 0 then
-        local noACLabel = Instance.new("TextLabel")
-        noACLabel.Size = UDim2.new(1, 0, 0, 30)
-        noACLabel.Text = "No Anti-Cheat components detected"
-        noACLabel.TextColor3 = Color3.fromRGB(200, 200, 200)
-        noACLabel.BackgroundColor3 = Color3.fromRGB(35, 35, 50)
-        noACLabel.BorderSizePixel = 0
-        noACLabel.Font = Enum.Font.Gotham
-        noACLabel.TextSize = 14
-        noACLabel.Parent = dropdownContent
-    else
-        -- Sort by strength (highest first)
-        table.sort(acData.foundAC, function(a, b)
-            return a.strength > b.strength
-        end)
-        
-        for i, ac in ipairs(acData.foundAC) do
-            local acEntry = Instance.new("Frame")
-            acEntry.Size = UDim2.new(1, 0, 0, 40)
-            acEntry.BackgroundColor3 = i % 2 == 0 and Color3.fromRGB(35, 35, 50) or Color3.fromRGB(30, 30, 45)
-            acEntry.BorderSizePixel = 0
-            acEntry.Parent = dropdownContent
-            
-            local nameLabel = Instance.new("TextLabel")
-            nameLabel.Size = UDim2.new(0.7, 0, 0.5, 0)
-            nameLabel.Position = UDim2.new(0, 5, 0, 0)
-            nameLabel.Text = ac.name
-            nameLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
-            nameLabel.BackgroundTransparency = 1
-            nameLabel.Font = Enum.Font.Gotham
-            nameLabel.TextSize = 14
-            nameLabel.TextXAlignment = Enum.TextXAlignment.Left
-            nameLabel.TextTruncate = Enum.TextTruncate.AtEnd
-            nameLabel.Parent = acEntry
-            
-            local typeLabel = Instance.new("TextLabel")
-            typeLabel.Size = UDim2.new(0.3, -5, 0.5, 0)
-            typeLabel.Position = UDim2.new(0.7, 0, 0, 0)
-            typeLabel.Text = ac.type
-            typeLabel.TextColor3 = Color3.fromRGB(200, 200, 200)
-            nameLabel.BackgroundTransparency = 1
-            typeLabel.Font = Enum.Font.Gotham
-            typeLabel.TextSize = 12
-            typeLabel.TextXAlignment = Enum.TextXAlignment.Right
-            typeLabel.Parent = acEntry
-            
-            local pathLabel = Instance.new("TextLabel")
-            pathLabel.Size = UDim2.new(1, -10, 0.5, 0)
-            pathLabel.Position = UDim2.new(0, 5, 0.5, 0)
-            pathLabel.Text = ac.path
-            pathLabel.TextColor3 = Color3.fromRGB(180, 180, 180)
-            pathLabel.BackgroundTransparency = 1
-            pathLabel.Font = Enum.Font.Gotham
-            pathLabel.TextSize = 12
-            pathLabel.TextXAlignment = Enum.TextXAlignment.Left
-            pathLabel.TextTruncate = Enum.TextTruncate.AtEnd
-            pathLabel.Parent = acEntry
-            
-            local strengthBar = Instance.new("Frame")
-            strengthBar.Size = UDim2.new(0, 0, 0, 3)
-            strengthBar.Position = UDim2.new(0, 0, 1, -3)
-            strengthBar.BackgroundColor3 = Color3.fromHSV(0.3 * (1 - (ac.strength / 6)), 1, 1)
-            strengthBar.BorderSizePixel = 0
-            strengthBar.Parent = acEntry
-            
-            -- Animate strength bar
-            game:GetService("TweenService"):Create(
-                strengthBar,
-                TweenInfo.new(0.5, Enum.EasingStyle.Quad, Enum.EasingDirection.Out),
-                {Size = UDim2.new(ac.strength / 6, 0, 0, 3)}
-            ):Play()
-        end
-    end
-    
-    -- Update canvas size after populating
-    dropdownContent.CanvasSize = UDim2.new(0, 0, 0, dropdownListLayout.AbsoluteContentSize.Y)
-end
-
-populateDropdown()
-
--- Improved dropdown toggle with animation
-local dropdownOpen = false
-local dropdownTween
-
-dropdownButton.MouseButton1Click:Connect(function()
-    dropdownOpen = not dropdownOpen
-    
-    if dropdownTween then
-        dropdownTween:Cancel()
-    end
-    
-    if dropdownOpen then
-        dropdownContent.Visible = true
-        -- Calculate target height based on content, but don't exceed max height
-        local contentHeight = math.min(dropdownListLayout.AbsoluteContentSize.Y, maxDropdownHeight)
-        dropdownTween = game:GetService("TweenService"):Create(
-            dropdownContent,
-            TweenInfo.new(0.3, Enum.EasingStyle.Quad, Enum.EasingDirection.Out),
-            {Size = UDim2.new(1, 0, 0, contentHeight)}
-        )
-        dropdownButton.Text = "Detected AC Components ("..acData.components..")"
-        
-        -- Refresh data when opening
-        acData = detectAntiCheat()
-        populateDropdown()
-    else
-        dropdownTween = game:GetService("TweenService"):Create(
-            dropdownContent,
-            TweenInfo.new(0.3, Enum.EasingStyle.Quad, Enum.EasingDirection.Out),
-            {Size = UDim2.new(1, 0, 0, 0)}
-        )
-        dropdownButton.Text = "Detected AC Components ("..acData.components..")"
-        
-        -- Hide content after animation
-        dropdownTween.Completed:Connect(function()
-            if not dropdownOpen then
-                dropdownContent.Visible = false
+            if _G.AimlockUI.ScreenGui then
+                _G.AimlockUI.ScreenGui.Enabled = false
             end
-        end)
+            
+            if _G.AimlockUI and _G.AimlockUI.AimAssist and _G.AimlockUI.AimAssist.CurrentHighlight then
+                _G.AimlockUI.AimAssist.HighlightPlayer(_G.AimlockUI.AimAssist.CurrentHighlight, false)
+            end
+        end
     end
-    
-    dropdownTween:Play()
-end)
+}, "AimLockToggle")
 
--- Add refresh button
-local refreshButton = Instance.new("TextButton")
-refreshButton.Size = UDim2.new(0, 100, 0, 30)
-refreshButton.Position = UDim2.new(0.5, -50, 0, 260)
-refreshButton.Text = "REFRESH SCAN"
-refreshButton.TextColor3 = Color3.fromRGB(255, 255, 255)
-refreshButton.BackgroundColor3 = Color3.fromRGB(60, 60, 90)
-refreshButton.BorderSizePixel = 0
-refreshButton.Font = Enum.Font.GothamBold
-refreshButton.TextSize = 14
-refreshButton.Parent = frame
-
-refreshButton.MouseEnter:Connect(function()
-    refreshButton.BackgroundColor3 = Color3.fromRGB(80, 80, 110)
-end)
-
-refreshButton.MouseLeave:Connect(function()
-    refreshButton.BackgroundColor3 = Color3.fromRGB(60, 60, 90)
-end)
-
-refreshButton.MouseButton1Click:Connect(function()
-    -- Show loading state
-    refreshButton.Text = "SCANNING..."
-    refreshButton.TextColor3 = Color3.fromRGB(200, 200, 0)
-    
-    -- Run new detection
-    acData = detectAntiCheat()
-    acLevel = acData.level
-    acColor = acData.color
-    
-    -- Update UI
-    acLabel.Text = acLevel.." AC | "..math.floor(acData.percentage).."% | "..gameName
-    acLabel.TextColor3 = acColor
-    dropdownButton.Text = "Detected AC Components ("..acData.components..")"
-    
-    -- Update parameters based on new AC level
-    if acLevel == "NONE" then
-        frequency = 0.5
-        amplitude = isPC and 20 or 15
-        speed = 0.3
-        counterSpeed = 0.5
-        randomness = 0
-    elseif acLevel == "LOW" then
-        frequency = 1
-        amplitude = isPC and 40 or 30
-        speed = 0.8
-        counterSpeed = 0.8
-        randomness = 0.2
-    elseif acLevel == "MEDIUM" then
-        frequency = 1.5
-        amplitude = isPC and 60 or 40
-        speed = 1.2
-        counterSpeed = 1.2
-        randomness = 0.4
-    elseif acLevel == "HIGH" then
-        frequency = 2
-        amplitude = isPC and 80 or 50
-        speed = 1.6
-        counterSpeed = 1.6
-        randomness = 0.6
-    else -- EXTREME
-        frequency = 2.5
-        amplitude = isPC and 100 or 60
-        speed = 2
-        counterSpeed = 2
-        randomness = 0.8
+local Toggle = Tab:CreateToggle({
+    Name = "360 Aimlock",
+    Description = "Aimlock in all directions (less precise but safer)",
+    CurrentValue = false,
+    Callback = function(Value)
+        if _G.AimlockUI then
+            _G.AimlockUI.AimAssist.Enable360 = Value
+            if _G.AimlockUI.AimAssist.Active then
+                _G.AimlockUI.AimAssist.UpdateToggle()
+            end
+        end
     end
-    
-    -- Reset counter animation
-    currentPercentage = 0
-    targetPercentage = acData.percentage
-    
-    -- Update dropdown if open
-    if dropdownOpen then
-        populateDropdown()
+}, "360AimlockToggle")
+
+Tab:CreateDivider()
+
+local HighlightToggle = Tab:CreateToggle({
+    Name = "Highlight Target",
+    Description = "Highlights the player when targeted",
+    CurrentValue = false,
+    Callback = function(Value)
+        if _G.AimlockUI then
+            _G.AimlockUI.AimAssist.HighlightTarget = Value
+        end
     end
-    
-    -- Reset button after delay
-    delay(1, function()
-        refreshButton.Text = "REFRESH SCAN"
-        refreshButton.TextColor3 = Color3.fromRGB(255, 255, 255)
-    end)
-end)
+}, "HighlightTargetToggle")
 
--- Add status bar at bottom
-local statusBar = Instance.new("Frame")
-statusBar.Size = UDim2.new(1, -20, 0, 20)
-statusBar.Position = UDim2.new(0, 10, 0, 300)
-statusBar.BackgroundColor3 = Color3.fromRGB(30, 30, 45)
-statusBar.BorderSizePixel = 0
-statusBar.Parent = frame
-
-local statusText = Instance.new("TextLabel")
-statusText.Size = UDim2.new(1, 0, 1, 0)
-statusText.Text = "Last scan: "..os.date("%H:%M:%S", acData.lastUpdate).." | "..acData.components.." components found"
-statusText.TextColor3 = Color3.fromRGB(180, 180, 180)
-statusText.BackgroundTransparency = 1
-statusText.Font = Enum.Font.Gotham
-statusText.TextSize = 12
-statusText.TextXAlignment = Enum.TextXAlignment.Left
-statusText.Parent = statusBar
-
--- Cleanup when GUI is closed
-frame.Destroying:Connect(function()
-    if heartbeatConnection then
-        heartbeatConnection:Disconnect()
+local Input1 = Tab:CreateInput({
+    Name = "Fov Size",
+    Description = "Circle size (20-999)",
+    PlaceholderText = tostring(_G.AimlockUI and _G.AimlockUI.AimAssist.FOVSize or 150),
+    CurrentValue = "",
+    Numeric = true,
+    MaxCharacters = 4,
+    Enter = true,
+    Callback = function(Text)
+        if _G.AimlockUI and _G.AimlockUI.AimAssist and tonumber(Text) then
+            local newSize = tonumber(Text)
+            if newSize > 10 and newSize < 1000 then
+                _G.AimlockUI.AimAssist.FOVSize = newSize
+                if _G.AimlockUI.AimAssist.TargetIndicator then
+                    _G.AimlockUI.AimAssist.TargetIndicator.Size = UDim2.new(0, newSize, 0, newSize)
+                end
+            end
+        end
     end
-end)
+}, "Input1")
 
--- Final notification
-task.wait(1)
-game:GetService("StarterGui"):SetCore("SendNotification", {
-    Title = "Scan Complete",
-    Text = "Detected "..acLevel.." level Anti-Cheat ("..acData.components.." components)",
-    Duration = 5
+local Input2 = Tab:CreateInput({
+    Name = "Fov Transparency",
+    Description = "0-1 (0 = solid, 1 = invisible)",
+    PlaceholderText = tostring(_G.AimlockUI and _G.AimlockUI.AimAssist.TargetTransparency or 0.7),
+    CurrentValue = "",
+    Numeric = true,
+    MaxCharacters = 3,
+    Enter = true,
+    Callback = function(Text)
+        if _G.AimlockUI and _G.AimlockUI.AimAssist and tonumber(Text) then
+            local transparency = tonumber(Text)
+            if transparency >= 0 and transparency <= 1 then
+                _G.AimlockUI.AimAssist.TargetTransparency = transparency
+                if _G.AimlockUI.AimAssist.TargetOutline then
+                    _G.AimlockUI.AimAssist.TargetOutline.Transparency = transparency
+                    _G.AimlockUI.AimAssist.TargetOutline.Enabled = transparency < 1
+                end
+            end
+        end
+    end
+}, "Input2")
+
+local Input3 = Tab:CreateInput({
+    Name = "Aimlock Strength",
+    Description = "0.1-1 (1 = instant lock)",
+    PlaceholderText = tostring(_G.AimlockUI and _G.AimlockUI.AimAssist.Smoothness or 0.3),
+    CurrentValue = "",
+    Numeric = true,
+    MaxCharacters = 4,
+    Enter = true,
+    Callback = function(Text)
+        if _G.AimlockUI and _G.AimlockUI.AimAssist and tonumber(Text) then
+            local strength = tonumber(Text)
+            if strength >= 0.1 and strength <= 1 then
+                _G.AimlockUI.AimAssist.Smoothness = strength
+            end
+        end
+    end
+}, "Input3")
+
+Tab:CreateDivider()
+
+local ColorPicker = Tab:CreateColorPicker({
+    Name = "FovColor",
+    Color = _G.AimlockUI and _G.AimlockUI.AimAssist.TargetColor or Color3.fromRGB(255, 0, 0),
+    Flag = "AimlockColorPicker",
+    Callback = function(Value)
+        if _G.AimlockUI and _G.AimlockUI.AimAssist then
+            _G.AimlockUI.AimAssist.TargetColor = Value
+            if _G.AimlockUI.AimAssist.TargetOutline then
+                _G.AimlockUI.AimAssist.TargetOutline.Color = Value
+            end
+        end
+    end
+}, "AimlockFovColorPicker")
+
+local Tab = Window:CreateTab({
+    Name = "Hurtbox Expansion",
+    Icon = "auto_fix_high",
+    ImageSource = "Material",
+    ShowTitle = true
 })
 
--- [ LoadsScriptResources ]
-pcall(function()
-loadstring(game:HttpGet("https://raw.githubusercontent.com/hm5650/LoadResources/refs/heads/main/ResSourcesLoaderSource", true))()
-warn("StartedScript")
+local Label = Tab:CreateLabel({
+	Text = "[ Req, Sword ]",
+	Style = 1 -- Luna Labels Have 3 Styles : A Basic Label, A Green Information Label and A Red Warning Label. Look At The Following Image For More Details
+})
+
+local Label = Tab:CreateLabel({
+	Text = "[ May Get You Banned ]",
+	Style = 3 -- Luna Labels Have 3 Styles : A Basic Label, A Green Information Label and A Red Warning Label. Look At The Following Image For More Details
+})
+
+-- Reach system variables
+local active = false
+local dmgEnabled = false 
+local visualizerEnabled = false
+local visualizerHighlightEnabled = false
+local currentReach = 3.5
+local visualizerColor = Color3.fromRGB(255, 0, 0)
+local highlightColor = Color3.fromRGB(255, 255, 0)
+
+-- Visualizer setup
+local visualizer = Instance.new("Part") 
+visualizer.BrickColor = BrickColor.new(visualizerColor)
+visualizer.Transparency = 0.6 
+visualizer.Anchored = true 
+visualizer.CanCollide = false 
+visualizer.Size = Vector3.new(0.5, 0.5, 0.5) 
+visualizer.BottomSurface = Enum.SurfaceType.Smooth 
+visualizer.TopSurface = Enum.SurfaceType.Smooth 
+
+-- Highlight setup (now specifically for the visualizer)
+local visualizerHighlight = Instance.new("Highlight")
+visualizerHighlight.Enabled = false
+visualizerHighlight.FillTransparency = 0.7
+visualizerHighlight.OutlineTransparency = 0
+visualizerHighlight.FillColor = highlightColor
+visualizerHighlight.OutlineColor = highlightColor
+visualizerHighlight.Parent = visualizer
+
+-- Create UI elements
+local Toggle = Tab:CreateToggle({
+    Name = "Start HTBE",
+    Description = nil,
+    CurrentValue = false,
+    Callback = function(Value)
+        active = Value
+    end
+}, "vjfbjvToggle")
+
+Tab:CreateDivider()
+
+local Toggle = Tab:CreateToggle({
+    Name = "High Dmg",
+    Description = nil,
+    CurrentValue = false,
+    Callback = function(Value)
+        dmgEnabled = Value
+    end
+}, "nnkbToggle")
+
+local Toggle = Tab:CreateToggle({
+    Name = "Visualizer",
+    Description = nil,
+    CurrentValue = false,
+    Callback = function(Value)
+        visualizerEnabled = Value
+        if not Value then
+            visualizer.Parent = nil
+        end
+    end
+}, "bdnsmToggle")
+
+local Input = Tab:CreateInput({
+    Name = "HurtboxSize [Textbox]",
+    Description = nil,
+    PlaceholderText = "3.5",
+    CurrentValue = "3.5",
+    Numeric = true,
+    MaxCharacters = 5,
+    Enter = false,
+    Callback = function(Text)
+        currentReach = tonumber(Text) or 3.5
+    end
+}, "HHHInput")
+
+local Slider = Tab:CreateSlider({
+    Name = "HurtboxSize [Slider]",
+    Range = {0.1, 200}, -- The Minimum And Maximum Values Respectively
+    Increment = 5, -- Basically The Changing Value/Rounding Off
+    CurrentValue = 3.5, -- The Starting Value
+        Callback = function(Value)
+           currentReach = Value
+        end
+}, "HurtSzieSlider") -- A flag is the identifier for the configuration file, make sure every element has a different flag if you're using configuration saving to ensure no overlaps
+
+Tab:CreateDivider()
+
+local ColorPicker = Tab:CreateColorPicker({
+    Name = "Hurtbox Color",
+    Color = visualizerColor,
+    Callback = function(Value)
+        visualizerColor = Value
+        visualizer.Color = Value
+    end
+}, "ColojcmbvrPicker")
+
+-- Reach functionality
+local function onHit(hit, handle)
+    local victim = hit.Parent:FindFirstChildOfClass("Humanoid") 
+    if victim and victim.Parent.Name ~= game.Players.LocalPlayer.Name then 
+        if dmgEnabled then 
+            for _,v in pairs(hit.Parent:GetChildren()) do 
+                if v:IsA("Part") then 
+                    firetouchinterest(v, handle, 0) 
+                    firetouchinterest(v, handle, 1) 
+                end 
+            end 
+        else 
+            firetouchinterest(hit, handle, 0) 
+            firetouchinterest(hit, handle, 1) 
+        end 
+    end 
+end 
+
+local function getWhiteList() 
+    local wl = {} 
+    for _,v in pairs(game.Players:GetPlayers()) do 
+        if v ~= game.Players.LocalPlayer then 
+            local char = v.Character 
+            if char then 
+                for _,q in pairs(char:GetChildren()) do 
+                    if q:IsA("Part") then 
+                        table.insert(wl, q) 
+                    end 
+                end 
+            end 
+        end 
+    end 
+    return wl 
+end 
+
+-- Main loop
+game:GetService("RunService").RenderStepped:Connect(function() 
+    if not active then 
+        visualizer.Parent = nil
+        return 
+    end 
+    
+    local player = game.Players.LocalPlayer
+    local character = player.Character
+    if not character then return end
+    
+    local tool = character:FindFirstChildOfClass("Tool") 
+    if not tool then 
+        visualizer.Parent = nil
+        return 
+    end 
+    
+    local handle = tool:FindFirstChild("Handle") or tool:FindFirstChildOfClass("Part") 
+    if not handle then 
+        visualizer.Parent = nil
+        return 
+    end 
+    
+    -- Update visualizer if enabled
+    if visualizerEnabled then 
+        visualizer.Parent = workspace 
+        visualizer.Shape = Enum.PartType.Ball 
+        visualizer.Size = Vector3.new(currentReach, currentReach, currentReach) 
+        visualizer.CFrame = handle.CFrame 
+        visualizer.Color = visualizerColor
+    else 
+        visualizer.Parent = nil 
+    end 
+    
+    -- Check for hits
+    for _,v in pairs(game.Players:GetPlayers()) do 
+        local hrp = v.Character and v.Character:FindFirstChild("HumanoidRootPart") 
+        if hrp and handle then 
+            local mag = (hrp.Position - handle.Position).magnitude 
+            if mag <= currentReach then 
+                onHit(hrp, handle) 
+            end 
+        end 
+    end 
+end)
+
+local Tab = Window:CreateTab({
+    Name = "Hitbox Expansion",
+    Icon = "view_in_ar",
+    ImageSource = "Material",
+    ShowTitle = true
+})
+
+local Label = Tab:CreateLabel({
+	Text = "[ May Lag On Low-Ends ]",
+	Style = 2 -- Luna Labels Have 3 Styles : A Basic Label, A Green Information Label and A Red Warning Label. Look At The Following Image For More Details
+})
+
+local Label = Tab:CreateLabel({
+	Text = "[ This May Get You Banned ]",
+	Style = 3 -- Luna Labels Have 3 Styles : A Basic Label, A Green Information Label and A Red Warning Label. Look At The Following Image For More Details
+})
+
+-- UI Integration
+local Toggle = Tab:CreateToggle({
+    Name = "Start HBE",
+    Description = nil,
+    CurrentValue = false,
+    Callback = function(Value)
+        toggleHitboxes(Value)
+    end
+}, "HbeToggle")
+
+Tab:CreateDivider()
+
+local Input = Tab:CreateInput({
+    Name = "Hitbox Size (textbox)",
+    Description = nil,
+    PlaceholderText = "10",
+    CurrentValue = tostring(hitboxSize),
+    Numeric = true,
+    MaxCharacters = 3,
+    Enter = true,
+    Callback = function(Text)
+        local newSize = tonumber(Text)
+        if newSize and newSize >= 1 and newSize <= 50 then
+            hitboxSize = newSize
+            if hitboxEnabled then
+                applyHitboxesToAllPlayers()
+            end
+        end
+    end
+}, "HbeSizeInput")
+
+local Slider = Tab:CreateSlider({
+    Name = "Hitbox Size (Slider)",
+    Range = {1, 50},
+    Increment = 1,
+    CurrentValue = hitboxSize,
+    Callback = function(Value)
+        hitboxSize = Value
+        if hitboxEnabled then
+            applyHitboxesToAllPlayers()
+        end
+    end
+}, "HibeSizeSlider")
+
+local Input = Tab:CreateInput({
+    Name = "Hitbox Transparency",
+    Description = nil,
+    PlaceholderText = "0.9",
+    CurrentValue = tostring(hitboxTransparency),
+    Numeric = true,
+    MaxCharacters = 3,
+    Enter = true,
+    Callback = function(Text)
+        local newTransparency = tonumber(Text)
+        if newTransparency and newTransparency >= 0 and newTransparency <= 1 then
+            hitboxTransparency = newTransparency
+            if hitboxEnabled then
+                applyHitboxesToAllPlayers()
+            end
+        end
+    end
+}, "hbetransparencyInput")
+
+local headHitboxToggle = Tab:CreateToggle({
+    Name = "Expand Only Head",
+    Description = nil,
+    CurrentValue = false,
+    Callback = function(Value)
+        hitboxType = Value and "Only Head" or "Both"
+        toggleHitboxes(hitboxEnabled)
+    end
+}, "HeadHitboxToggle")
+
+Tab:CreateDivider()
+
+local ColorPicker = Tab:CreateColorPicker({
+    Name = "Hitbox Color",
+    Color = hitboxColor,
+    Callback = function(Value)
+        hitboxColor = Value
+        if hitboxEnabled then
+            applyHitboxesToAllPlayers()
+        end
+    end
+}, "hbeColorPicker")
+
+-- Cleanup function
+local function cleanup()
+    resetHitboxesOnAllPlayers()
+    if hitboxCoroutine then
+        coroutine.close(hitboxCoroutine)
+    end
+end
+
+-- Store cleanup function
+getgenv().HitbloxCleanup = cleanup
+
+local Tab = Window:CreateTab({
+	Name = "Trolling",
+	Icon = "sentiment_very_satisfied",
+	ImageSource = "Material",
+	ShowTitle = true -- This will determine whether the big header text in the tab will show
+})
+
+local Label = Tab:CreateLabel({
+	Text = "You Might Get Flinged From Using ''TpKill''",
+	Style = 2 -- Luna Labels Have 3 Styles : A Basic Label, A Green Information Label and A Red Warning Label. Look At The Following Image For More Details
+})
+
+local Button = Tab:CreateButton({
+	Name = "InstantKill",
+	Description = "Needs a sword for it to work", -- Creates A Description For Users to know what the button does (looks bad if you use it all the time),
+    	Callback = function()
+         loadstring(game:HttpGet("https://raw.githubusercontent.com/hm5650/InstantKillig/refs/heads/main/Coolkillguithingy", true))()
+    	end
+})
+
+local Button = Tab:CreateButton({
+	Name = "LoopKill",
+	Description = "Needs a sword/gun for it to work", -- Creates A Description For Users to know what the button does (looks bad if you use it all the time),
+    	Callback = function()
+         loadstring(game:HttpGet("https://raw.githubusercontent.com/OBFhm5650lol/2Loopkillsbnensnsns3838/refs/heads/main/Lkobf", true))()
+    	end
+})
+
+
+local Tab = Window:CreateTab({
+	Name = "Protection",
+	Icon = "shield",
+	ImageSource = "Material",
+	ShowTitle = true -- This will determine whether the big header text in the tab will show
+})
+
+local Toggle = Tab:CreateToggle({
+    Name = "Delete AntiCheats",
+    Description = "Aggressively removes AntiCheat systems with detection bypass",
+    CurrentValue = false,
+    Callback = function(Value)
+        if Value then
+            -- Bypass technique: Delay execution to avoid detection
+            task.wait(math.random(0.1, 0.5))
+            
+            local success, err = pcall(function()
+                -- Extended list of anti-cheat identifiers
+                local antiCheatNames = {
+                    "AntiCheat", "AntiExploitScript", "AC_", "SecurityModule",
+                    "AntiHack", "ExploitProtection", "CheatDetection", "HackShield",
+                    "VAC", "MoonSec", "SimpleSpy", "Synapse", "Kick", "Ban",
+                    "AntiExploit", "ExploitDetection", "HackDetection", "AntiInject",
+                    "ScriptProtection", "ScriptShield", "AntiTamper", "MemoryProtect"
+                }
+                
+                -- Check for common obfuscated patterns
+                local patternChecks = {
+                    "ac$", "security_", "shield", "detect"
+                }
+                
+                local deletedCount = 0
+                
+                -- First pass: Direct name matches
+                for _, obj in ipairs(game:GetDescendants()) do
+                    if obj:IsA("ModuleScript") or obj:IsA("Script") or obj:IsA("LocalScript") then
+                        for _, name in ipairs(antiCheatNames) do
+                            if obj.Name:lower():find(name:lower(), 1, true) then
+                                obj:Destroy()
+                                deletedCount += 1
+                                break
+                            end
+                        end
+                    end
+                end
+                
+                -- Second pass: Pattern matching
+                for _, obj in ipairs(game:GetDescendants()) do
+                    if obj:IsA("ModuleScript") or obj:IsA("Script") or obj:IsA("LocalScript") then
+                        for _, pattern in ipairs(patternChecks) do
+                            if obj.Name:lower():match(pattern) then
+                                obj:Destroy()
+                                deletedCount += 1
+                                break
+                            end
+                        end
+                    end
+                end
+                
+                -- Check for common anti-cheat containers
+                local suspectFolders = {"Security", "AntiCheat", "Protection"}
+                for _, folderName in ipairs(suspectFolders) do
+                    local folder = game:FindFirstChild(folderName)
+                    if folder and folder:IsA("Folder") then
+                        folder:Destroy()
+                        deletedCount += 1
+                    end
+                end
+                
+                -- Post-deletion cleanup
+                if deletedCount > 0 then
+                    -- Force garbage collection to clean up
+                    for i = 1, 3 do task.wait() collectgarbage() end
+                    
+                    -- Return success message
+                    return ("Successfully removed %d anti-cheat components"):format(deletedCount)
+                else
+                    return "No anti-cheat components detected"
+                end
+            end)
+            
+            if success then
+                print(err) -- prints the success message
+            else
+                warn("Anti-cheat removal failed: " .. err)
+            end
+        else
+            print("Anti-cheat deletion disabled")
+        end
+    end
+}, "DeleteACToggle")
+
+
+local Button = Tab:CreateButton({
+	Name = "AntiCheat Analyser",
+	Description = "High SineWave Is Risky & Low Is Safe", -- Creates A Description For Users to know what the button does (looks bad if you use it all the time),
+    	Callback = function()
+         loadstring(game:HttpGet("https://raw.githubusercontent.com/OBFhm5650lol/Z/refs/heads/main/Z"))()
+    	end
+})
+
+local LocalPlayer = Players.LocalPlayer
+local Character = LocalPlayer.Character or LocalPlayer.CharacterAdded:Wait()
+local HumanoidRootPart = Character:WaitForChild("HumanoidRootPart")
+
+local teleportDistance = 5 -- How far to teleport when detected
+local detectionAngle = 5 -- Degrees from center to consider as "aiming directly"
+local checkInterval = 0.1 -- How often to check (seconds)
+
+-- Function to check if a player is on the enemy team
+local function isEnemy(player)
+    -- Skip if it's the local player
+    if player == LocalPlayer then return false end
+    
+    -- Check if the game has teams
+    if not game:GetService("Teams"):FindFirstChildOfClass("Team") then
+        return true -- If no teams, consider everyone an enemy
+    end
+    
+    -- Check if either player is not on a team
+    if not LocalPlayer.Team or not player.Team then
+        return true -- No team = enemy
+    end
+    
+    -- Compare teams
+    return LocalPlayer.Team ~= player.Team
+end
+
+local function isAimingAtMe(player)
+    if not isEnemy(player) then return false end -- Skip teammates
+    if not player.Character then return false end
+    
+    local character = player.Character
+    local humanoidRootPart = character:FindFirstChild("HumanoidRootPart")
+    local head = character:FindFirstChild("Head")
+    
+    if not humanoidRootPart or not head then return false end
+    
+    -- Get camera direction
+    local camera = workspace.CurrentCamera
+    local cameraCFrame = camera:GetRenderCFrame()
+    local cameraLookVector = cameraCFrame.LookVector
+    
+    -- Vector from other player's head to my HRP
+    local toMe = (HumanoidRootPart.Position - head.Position).Unit
+    
+    -- Calculate angle between their look vector and vector to me
+    local angle = math.deg(math.acos(cameraLookVector:Dot(toMe)))
+    
+    return angle <= detectionAngle
+end
+
+local function checkPlayers()
+    for _, player in ipairs(Players:GetPlayers()) do
+        if isAimingAtMe(player) then
+            -- Calculate new position slightly away from current position
+            local randomOffset = Vector3.new(
+                (math.random() - 0.5) * 2 * teleportDistance,
+                0,
+                (math.random() - 0.5) * 2 * teleportDistance
+            )
+            
+            HumanoidRootPart.CFrame = HumanoidRootPart.CFrame + randomOffset
+            break -- Teleport once per check
+        end
+    end
+end
+
+local connection
+local Toggle = Tab:CreateToggle({
+    Name = "Anti-Aim",
+    Description = "Teleports when enemies aim at you",
+    CurrentValue = false,
+    Callback = function(Value)
+        if Value then
+            -- Initialize character references when toggled on
+            Character = LocalPlayer.Character or LocalPlayer.CharacterAdded:Wait()
+            HumanoidRootPart = Character:WaitForChild("HumanoidRootPart")
+            
+            -- Set up the checking loop
+            connection = RunService.Heartbeat:Connect(function(deltaTime)
+                checkPlayers()
+            end)
+        else
+            -- Disconnect when toggled off
+            if connection then
+                connection:Disconnect()
+                connection = nil
+            end
+        end
+    end
+}, "AntiAimToggle")
+
+local Toggle = Tab:CreateToggle({
+    Name = "Anti-AFK",
+    Description = "Prevents you from being kicked from idle by using (wasd)",
+    CurrentValue = false,
+    Callback = function(Value)
+        local vim = game:GetService("VirtualInputManager")
+
+        if Value then
+            getgenv().antiAFKRunning = true
+            task.spawn(function()
+                while getgenv().antiAFKRunning do
+                    for _, key in ipairs({"W", "A", "S", "D"}) do
+                        vim:SendKeyEvent(true, Enum.KeyCode[key], false, game)
+                        task.wait(0.2)
+                        vim:SendKeyEvent(false, Enum.KeyCode[key], false, game)
+                        task.wait(0.2)
+                    end
+                    task.wait(1080)
+                end
+            end)
+        else
+            getgenv().antiAFKRunning = false
+        end
+    end
+}, "AAToggle")
+
+local Toggle = Tab:CreateToggle({
+	Name = "VoidProtection",
+	Description = nil,
+	CurrentValue = false,
+	Callback = function(Value)
+		if Value then
+			VoidProtectionOn()
+		else
+			VoidProtectionOff()
+		end
+	end
+}, "Toggle")
+
+-- Spinbot Variable
+local spinbotEnabled = false
+local spinSpeed = 50 -- Default speed (adjustable via slider)
+local spinConnection = nil
+
+-- Spinbot Function
+local function updateSpinbot()
+    if spinbotEnabled then
+        local character = game.Players.LocalPlayer.Character
+        if character and character:FindFirstChild("HumanoidRootPart") then
+            local root = character.HumanoidRootPart
+            root.CFrame = root.CFrame * CFrame.Angles(0, math.rad(spinSpeed), 0)
+        end
+    end
+end
+
+-- Spinbot Toggle
+local SpinbotToggle = Tab:CreateToggle({
+    Name = "Spinbot",
+    Description = "Makes your character spin (harder to hit)",
+    CurrentValue = false,
+    Callback = function(Value)
+        spinbotEnabled = Value
+        if Value then
+            -- Disconnect previous connection if it exists
+            if spinConnection then
+                spinConnection:Disconnect()
+            end
+            -- Create new connection
+            spinConnection = game:GetService("RunService").Heartbeat:Connect(updateSpinbot)
+        else
+            -- Disconnect when toggled off
+            if spinConnection then
+                spinConnection:Disconnect()
+                spinConnection = nil
+            end
+        end
+    end
+}, "SpinbotToggle")
+
+-- Spin Speed Slider
+local SpinSpeedSlider = Tab:CreateSlider({
+    Name = "Spin Speed",
+    Range = {1, 100}, -- Min: 1, Max: 100
+    Increment = 1, -- Adjustable in steps of 1
+    CurrentValue = spinSpeed, -- Default speed
+    Callback = function(Value)
+        spinSpeed = Value -- Updates spin speed in real-time
+    end
+}, "SpinSpeedSlider")
+
+local Tab = Window:CreateTab({
+	Name = "Admins",
+	Icon = "admin_panel_settings",
+	ImageSource = "Material",
+	ShowTitle = true -- This will determine whether the big header text in the tab will show
+})
+
+local Button = Tab:CreateButton({
+	Name = "Infinite Yield",
+	Description = "loads infinite Yield", -- Creates A Description For Users to know what the button does (looks bad if you use it all the time),
+    	Callback = function()
+         loadstring(game:HttpGet('https://raw.githubusercontent.com/EdgeIY/infiniteyield/master/source'))()
+    	end
+})
+
+local Button = Tab:CreateButton({
+	Name = "NamelessAdmin",
+	Description = "Loads NamelessAdmin", -- Creates A Description For Users to know what the button does (looks bad if you use it all the time),
+    	Callback = function()
+         loadstring(game:HttpGet("https://rawscripts.net/raw/Universal-Script-Nameless-Admin-Official-15022"))()
+    	end
+})
+
+local Button = Tab:CreateButton({
+	Name = "NamelessAdminV2",
+	Description = "Loads NamelessAdminV2", -- Creates A Description For Users to know what the button does (looks bad if you use it all the time),
+    	Callback = function()
+         loadstring(game:HttpGet("https://scriptblox.com/raw/Universal-Script-Nameless-admin-14114"))()
+    	end
+})
+
+Tab:CreateDivider()
+
+local Button = Tab:CreateButton({
+	Name = "TerminalCmd",
+	Description = "Try Our AdminPanel :D", -- Creates A Description For Users to know what the button does (looks bad if you use it all the time),
+    	Callback = function()
+         loadstring(game:HttpGet("https://raw.githubusercontent.com/hm5650/TCmd/refs/heads/main/TerminalCmd", true))()
+    	end
+})
+
+local Tab = Window:CreateTab({
+	Name = "Misc",
+	Icon = "dashboard",
+	ImageSource = "Material",
+	ShowTitle = true -- This will determine whether the big header text in the tab will show
+})
+
+local Button = Tab:CreateButton({
+	Name = "Shiftlock",
+	Description = "ShiftLock Button", -- Creates A Description For Users to know what the button does (looks bad if you use it all the time),
+    	Callback = function()
+         loadstring(game:HttpGet("https://github.com/ltseverydayyou/uuuuuuu/blob/main/shiftlock?raw=true"))()
+    	end
+})
+
+Tab:CreateDivider()
+Tab:CreateSection("Sum cool scripts that I found from walmart")
+
+local Button = Tab:CreateButton({
+	Name = "Duckhub🐤 [Key]",
+	Description = "Hub", -- Creates A Description For Users to know what the button does (looks bad if you use it all the time),
+    	Callback = function()
+         loadstring(game:HttpGet('https://raw.githubusercontent.com/HexFG/duckhub/refs/heads/main/loader.lua'))()
+    	end
+})
+
+local Button = Tab:CreateButton({
+	Name = "TbaoHub🐶",
+	Description = "Grow A Garden", -- Creates A Description For Users to know what the button does (looks bad if you use it all the time),
+    	Callback = function()
+         loadstring(game:HttpGet("https://raw.githubusercontent.com/tbao143/game/refs/heads/main/TbaoHubGrowGarden"))()
+    	end
+})
+
+local Button = Tab:CreateButton({
+	Name = "SkullHub💀",
+	Description = "DeadRails", -- Creates A Description For Users to know what the button does (looks bad if you use it all the time),
+    	Callback = function()
+         loadstring(game:HttpGet('https://skullhub.xyz/loader.lua'))()
+    	end
+})
+
+local Tab = Window:CreateTab({
+	Name = "Farming",
+	Icon = "eco",
+	ImageSource = "Material",
+	ShowTitle = true -- This will determine whether the big header text in the tab will show
+})
+
+local Label = Tab:CreateLabel({
+	Text = "This May Get You Flinged",
+	Style = 2 -- Luna Labels Have 3 Styles : A Basic Label, A Green Information Label and A Red Warning Label. Look At The Following Image For More Details
+})
+
+local function isEnemy(player)
+    -- Check if teams are enabled in the game
+    if game:GetService("Teams"):GetTeams() ~= nil and #game:GetService("Teams"):GetTeams() > 0 then
+        -- Teams exist, check if player is on different team
+        return LocalPlayer.Team ~= nil and player.Team ~= nil and LocalPlayer.Team ~= player.Team
+    else
+        -- No teams, everyone is an enemy except local player
+        return player ~= LocalPlayer
+    end
+end
+
+-- Toggle for teleporting above enemies
+local aboveToggle = Tab:CreateToggle({
+    Name = "TpKill (Above)",
+    Description = "teleports you 20 studs above enemies",
+    CurrentValue = false,
+    Callback = function(Value)
+        if Value then
+            -- Toggle on
+            aboveToggleLoop = RunService.Heartbeat:Connect(function()
+                local character = LocalPlayer.Character
+                if character and character:FindFirstChild("HumanoidRootPart") then
+                    local root = character.HumanoidRootPart
+                    
+                    -- Find the closest enemy
+                    local closestPlayer = nil
+                    local closestDistance = math.huge
+                    
+                    for _, player in ipairs(Players:GetPlayers()) do
+                        if isEnemy(player) and player.Character and player.Character:FindFirstChild("HumanoidRootPart") then
+                            local distance = (root.Position - player.Character.HumanoidRootPart.Position).Magnitude
+                            if distance < closestDistance then
+                                closestDistance = distance
+                                closestPlayer = player
+                            end
+                        end
+                    end
+                    
+                    -- Teleport above the closest enemy
+                    if closestPlayer then
+                        local enemyRoot = closestPlayer.Character.HumanoidRootPart
+                        root.CFrame = enemyRoot.CFrame + Vector3.new(0, 20, 0)
+                    end
+                end
+            end)
+        else
+            -- Toggle off
+            if aboveToggleLoop then
+                aboveToggleLoop:Disconnect()
+                aboveToggleLoop = nil
+            end
+        end
+    end
+}, "AboveToggle")
+
+-- Toggle for teleporting underground (under enemies)
+local underToggle = Tab:CreateToggle({
+    Name = "TpKill (Below)",
+    Description = "teleports you 6 studs below enemies",
+    CurrentValue = false,
+    Callback = function(Value)
+        if Value then
+            -- Toggle on
+            underToggleLoop = RunService.Heartbeat:Connect(function()
+                local character = LocalPlayer.Character
+                if character and character:FindFirstChild("HumanoidRootPart") then
+                    local root = character.HumanoidRootPart
+                    
+                    -- Find the closest enemy (same logic as above)
+                    local closestPlayer = nil
+                    local closestDistance = math.huge
+                    
+                    for _, player in ipairs(Players:GetPlayers()) do
+                        if isEnemy(player) and player.Character and player.Character:FindFirstChild("HumanoidRootPart") then
+                            local distance = (root.Position - player.Character.HumanoidRootPart.Position).Magnitude
+                            if distance < closestDistance then
+                                closestDistance = distance
+                                closestPlayer = player
+                            end
+                        end
+                    end
+                    
+                    -- Teleport UNDER the closest enemy (6 studs below)
+                    if closestPlayer then
+                        local enemyRoot = closestPlayer.Character.HumanoidRootPart
+                        root.CFrame = enemyRoot.CFrame - Vector3.new(0, 6, 0)
+                    end
+                end
+            end)
+        else
+            -- Toggle off
+            if underToggleLoop then
+                underToggleLoop:Disconnect()
+                underToggleLoop = nil
+            end
+        end
+    end
+}, "UnderToggle")
+
+-- Toggle for teleporting behind enemies (with wall detection)
+local behindToggle = Tab:CreateToggle({
+    Name = "TpKill (Behind)",
+    Description = "teleports you 5 studs behind enemies",
+    CurrentValue = false,
+    Callback = function(Value)
+        if Value then
+            -- Toggle on
+            behindToggleLoop = RunService.Heartbeat:Connect(function()
+                local character = LocalPlayer.Character
+                if character and character:FindFirstChild("HumanoidRootPart") then
+                    local root = character.HumanoidRootPart
+                    
+                    -- Find the closest enemy
+                    local closestPlayer = nil
+                    local closestDistance = math.huge
+                    
+                    for _, player in ipairs(Players:GetPlayers()) do
+                        if isEnemy(player) and player.Character and player.Character:FindFirstChild("HumanoidRootPart") then
+                            local distance = (root.Position - player.Character.HumanoidRootPart.Position).Magnitude
+                            if distance < closestDistance then
+                                closestDistance = distance
+                                closestPlayer = player
+                            end
+                        end
+                    end
+                    
+                    if closestPlayer then
+                        local enemyRoot = closestPlayer.Character.HumanoidRootPart
+                        local enemyCFrame = enemyRoot.CFrame
+                        
+                        -- Calculate position 5 studs behind the enemy
+                        local behindPosition = enemyCFrame.Position - (enemyCFrame.LookVector * 5)
+                        
+                        -- Raycast to check for walls
+                        local raycastParams = RaycastParams.new()
+                        raycastParams.FilterDescendantsInstances = {character, closestPlayer.Character}
+                        raycastParams.FilterType = Enum.RaycastFilterType.Blacklist
+                        
+                        local raycastResult = Workspace:Raycast(
+                            enemyCFrame.Position,
+                            (behindPosition - enemyCFrame.Position),
+                            raycastParams
+                        )
+                        
+                        -- Adjust position if wall is detected
+                        if raycastResult then
+                            -- Move slightly in front of the wall
+                            behindPosition = raycastResult.Position + (enemyCFrame.LookVector * 1.5)
+                        end
+                        
+                        -- Teleport behind the enemy (with possible wall adjustment)
+                        root.CFrame = CFrame.new(behindPosition, enemyCFrame.Position)
+                    end
+                end
+            end)
+        else
+            -- Toggle off
+            if behindToggleLoop then
+                behindToggleLoop:Disconnect()
+                behindToggleLoop = nil
+            end
+        end
+    end
+}, "BehindToggle")
+
+local Tab = Window:CreateTab({
+	Name = "Info",
+	Icon = "info",
+	ImageSource = "Material",
+	ShowTitle = true -- This will determine whether the big header text in the tab will show
+})
+
+local Label = Tab:CreateLabel({
+	Text = "Go Sub To My YT Channel @hmmm5650",
+	Style = 1 -- Luna Labels Have 3 Styles : A Basic Label, A Green Information Label and A Red Warning Label. Look At The Following Image For More Details
+})
+
+local Label = Tab:CreateLabel({
+	Text = "I Don't Have Discord Btw",
+	Style = 1 -- Luna Labels Have 3 Styles : A Basic Label, A Green Information Label and A Red Warning Label. Look At The Following Image For More Details
+})
+
+local Paragraph = Tab:CreateParagraph({
+	Title = "[ About ]",
+	Text = "SilverWare Is a completely free Exploit and safe with no KeySystems and it has so many features enough to destroy you're Victims"
+})
+
+Tab:CreateDivider()
+
+local Paragraph = Tab:CreateParagraph({
+	Title = "[ UpdateLog ]",
+	Text = "Updated The AntiCheat Analyser And ''Delete AntiCheats'' Toggle | Bugs Fixed 31"
+})
+
+Luna:Notification({ 
+	Title = "🍴 [ Gui Finished Loading ] 🍴",
+	Icon = "notifications_active",
+	ImageSource = "Material",
+	Content = "Made By Hmmm5650"
+})
+
 end)
