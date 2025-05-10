@@ -2368,7 +2368,7 @@ local headHitboxToggle = Tab:CreateToggle({
 
 -- Add wall check toggle
 local wallCheckToggle = Tab:CreateToggle({
-    Name = "WallCheck",
+    Name = "WallCheck [WIP]",
     Description = "Automatically reduces hitbox size in small spaces",
     CurrentValue = wallCheckEnabled,
     Callback = function(Value)
