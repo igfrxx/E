@@ -1814,7 +1814,7 @@ local ColorPicker = Tab:CreateColorPicker({
 }, "AimlockFovColorPicker")
 
 local Tab = Window:CreateTab({
-    Name = "Hurtbox Expansion",
+    Name = "ToolMods",
     Icon = "auto_fix_high",
     ImageSource = "Material",
     ShowTitle = true
@@ -2006,13 +2006,46 @@ game:GetService("RunService").RenderStepped:Connect(function()
     end 
 end)
 
+local Button = Tab:CreateButton({
+	Name = "InstantKill",
+	Description = nil, -- Creates A Description For Users to know what the button does (looks bad if you use it all the time),
+    	Callback = function()
+         loadstring(game:HttpGet("https://raw.githubusercontent.com/hm5650/InstantKillig/refs/heads/main/Coolkillguithingy", true))()
+    	end
+})
+
+local Toggle = Tab:CreateToggle({
+    Name = "Auto Swing",
+    Description = nil,
+    CurrentValue = false,
+    Callback = function(Value)
+        -- The function that takes place when the toggle is switched
+        -- The variable (Value) is a boolean on whether the toggle is true or false
+
+        if Value then
+            -- Enable auto-swing
+            _G.AutoSwing = true
+            while _G.AutoSwing do
+                -- Trigger melee swing logic here
+                -- Replace this with the specific function or event to swing the melee weapon
+                pcall(function()
+                    game:GetService("Players").LocalPlayer.Character:FindFirstChildOfClass("Tool"):Activate()
+                end)
+                wait(0.1) -- Adjust the delay between swings as needed
+            end
+        else
+            -- Disable auto-swing
+            _G.AutoSwing = false
+        end
+    end
+}, "AutoSwingToggle")
+
 local Tab = Window:CreateTab({
     Name = "Hitbox Expansion",
     Icon = "view_in_ar",
     ImageSource = "Material",
     ShowTitle = true
 })
-
 
 -- Hitbox Variable
 local localPlayer = Players.LocalPlayer
@@ -2337,14 +2370,6 @@ local Tab = Window:CreateTab({
 local Label = Tab:CreateLabel({
 	Text = "You Might Get Flinged From Using ''TpKill''",
 	Style = 2 -- Luna Labels Have 3 Styles : A Basic Label, A Green Information Label and A Red Warning Label. Look At The Following Image For More Details
-})
-
-local Button = Tab:CreateButton({
-	Name = "InstantKill",
-	Description = "Needs a sword for it to work", -- Creates A Description For Users to know what the button does (looks bad if you use it all the time),
-    	Callback = function()
-         loadstring(game:HttpGet("https://raw.githubusercontent.com/hm5650/InstantKillig/refs/heads/main/Coolkillguithingy", true))()
-    	end
 })
 
 local Button = Tab:CreateButton({
