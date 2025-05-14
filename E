@@ -1,6 +1,6 @@
 pcall(function()
 
--- Services
+    -- Services
 local Players = game:GetService("Players")
 local TweenService = game:GetService("TweenService")
 local RunService = game:GetService("RunService")
@@ -8,110 +8,44 @@ local UserInputService = game:GetService("UserInputService")
 local SoundService = game:GetService("SoundService")
 local Teams = game:GetService("Teams")
 local Lighting = game:GetService("Lighting")
-local Players = game:GetService("Players")
-local LocalPlayer = Players.LocalPlayer
-local RunService = game:GetService("RunService")
-local Teams = game:GetService("Teams")
 local HttpService = game:GetService("HttpService")
-local Players = game:GetService("Players")
-local Players = game:GetService("Players")
-local LocalPlayer = Players.LocalPlayer
-local RunService = game:GetService("RunService")
 local Workspace = game:GetService("Workspace")
-local Players = game:GetService("Players")
-local RunService = game:GetService("RunService")
 
 -- StoredVariables
 
--- memCleaner
-local function memCleaner()
-    -- Get initial memory usage
-    local before = collectgarbage("count")
-    
-    -- Print initial memory (convert KB to MB)
-    print("[Memory Cleaner] Starting cleanup...")
-    print(string.format("[Memory Cleaner] Current memory: %.2f MB", before/1024))
-    
-    -- Force garbage collection twice (recommended by Lua docs)
-    for i = 1, 2 do
-        collectgarbage("collect")
-    end
-    
-    -- Additional Roblox-specific cleanup
-    game:GetService("ContentProvider"):SetBaseUrl("http://www.roblox.com")
-    
-    -- Get final memory usage
-    local after = collectgarbage("count")
-    
-    -- Print results
-    print(string.format("[Memory Cleaner] Memory after cleanup: %.2f MB", after/1024))
-    print(string.format("[Memory Cleaner] Freed: %.2f MB", (before-after)/1024))
-    
-    return (before-after)/1024
-end
-
--- VoidProtection Variable
-local player = Players.LocalPlayer
-local character = player.Character or player.CharacterAdded:Wait()
-local hrp = character:WaitForChild("HumanoidRootPart")
-local humanoid = character:WaitForChild("Humanoid")
-
-local monitoring = false
-local connection
-local highestY = hrp.Position.Y
-local lastPropulsionHeight = 0
-local consecutiveBounces = 0
-
--- Function to check if player is on a platform
-local function isOnPlatform()
-    if not humanoid then return false end
-    return humanoid.FloorMaterial ~= Enum.Material.Air
-end
-
-function VoidProtectionOn()
-    if monitoring then return end
-    monitoring = true
-
-    connection = RunService.Heartbeat:Connect(function()
-        if not character or not character:FindFirstChild("HumanoidRootPart") then return end
-
-        local currentY = hrp.Position.Y
-
-        -- Reset system if player is on a platform
-        if isOnPlatform() then
-            highestY = currentY
-            consecutiveBounces = 0
-            return
-        end
-
-        -- Update the highest point if we're ascending
-        if hrp.Velocity.Y > 0 then
-            highestY = currentY
-        end
-
-        -- Check if we've fallen below the void level
-        if currentY <-105 then
-            local fallDistance = highestY - currentY
+    -- memCleaner with better error handling
+    local function memCleaner()
+        local success, result = pcall(function()
+            -- Get initial memory usage
+            local before = collectgarbage("count")
             
-            -- Increase bounce strength based on consecutive bounces
-            consecutiveBounces = consecutiveBounces + 1
-            local bounceMultiplier = 2 + (consecutiveBounces * 0.5) -- Each bounce increases power by 50%
-            local bounceVelocity = math.clamp(fallDistance * bounceMultiplier, 100, 500)
-
-            hrp.Velocity = Vector3.new(0, bounceVelocity, 0)
-
-            -- Store the height we were propelled from
-            lastPropulsionHeight = currentY
+            -- Print initial memory (convert KB to MB)
+            print("[Memory Cleaner] Starting cleanup...")
+            print(string.format("[Memory Cleaner] Current memory: %.2f MB", before/1024))
+            
+            -- Force garbage collection twice (recommended by Lua docs)
+            for i = 1, 2 do
+                collectgarbage("collect")
+            end
+            
+            -- Additional Roblox-specific cleanup
+            game:GetService("ContentProvider"):SetBaseUrl("http://www.roblox.com")
+            
+            -- Get final memory usage
+            local after = collectgarbage("count")
+            
+            -- Print results
+            print(string.format("[Memory Cleaner] Memory after cleanup: %.2f MB", after/1024))
+            print(string.format("[Memory Cleaner] Freed: %.2f MB", (before-after)/1024))
+            
+            return (before-after)/1024
+        end)
+        
+        if not success then
+            return handleError(result, "memCleaner")
         end
-    end)
-end
-
-function VoidProtectionOff()
-    if connection then
-        connection:Disconnect()
+        return result
     end
-    monitoring = false
-end
 
 -- Esp Variable
 
@@ -1032,7 +966,7 @@ queueNotification("Made By Hmmm5650", "Script Started", 3, Color3.fromRGB(161, 1
 local Luna = loadstring(game:HttpGet("https://raw.githubusercontent.com/Nebula-Softworks/Luna-Interface-Suite/refs/heads/main/source.lua", true))()
 local Window = Luna:CreateWindow({
     Name = "SilverWare🍴",
-    Subtitle = "(v2.1) [ Only For Mobile ] ", -- VZ
+    Subtitle = "(v2.2) [ Only For Mobile ] ", -- VZ
     LogoID = "98445694743887",
     LoadingEnabled = false,
     LoadingTitle = "Starting SilverWare🍴",
@@ -1346,13 +1280,36 @@ local ClearEspButton = Tab:CreateButton({
     end
 }, "ClearEspButton")
 
+local FOVEnabled = false
+local CurrentFOV = 70
+
+local Toggle = Tab:CreateToggle({
+    Name = "Fov",
+    Description = "Toggle to enable/disable FOV modification",
+    CurrentValue = FOVEnabled,
+    Callback = function(Value)
+        FOVEnabled = Value
+        -- Apply current FOV when toggled on
+        if FOVEnabled then
+            game.Workspace.CurrentCamera.FieldOfView = CurrentFOV
+        else
+            -- Reset to default FOV when toggled off
+            game.Workspace.CurrentCamera.FieldOfView = 70
+        end
+    end
+}, "FOVToggle")
+
 local Slider = Tab:CreateSlider({
     Name = "FOV Slider",
     Range = {0, 120},
     Increment = 1,
-    CurrentValue = 70,
+    CurrentValue = CurrentFOV,
     Callback = function(Value)
-        game.Workspace.CurrentCamera.FieldOfView = Value
+        CurrentFOV = Value
+        -- Only update FOV if the toggle is enabled
+        if FOVEnabled then
+            game.Workspace.CurrentCamera.FieldOfView = CurrentFOV
+        end
     end
 }, "FOVSlider")
 
@@ -1364,8 +1321,8 @@ local Tab = Window:CreateTab({
 })
 
 local Toggle = Tab:CreateToggle({
-    Name = "ShowAimlock",
-    Description = "Boots Up Aimlock",
+    Name = "showAimlock",
+    Description = nil,
     CurrentValue = false,
     Callback = function(Value)
         -- Store references to all the UI elements
@@ -2367,11 +2324,6 @@ local Tab = Window:CreateTab({
 	ShowTitle = true -- This will determine whether the big header text in the tab will show
 })
 
-local Label = Tab:CreateLabel({
-	Text = "You Might Get Flinged From Using ''TpKill''",
-	Style = 2 -- Luna Labels Have 3 Styles : A Basic Label, A Green Information Label and A Red Warning Label. Look At The Following Image For More Details
-})
-
 local Button = Tab:CreateButton({
 	Name = "LoopKill",
 	Description = "Needs a sword/gun for it to work", -- Creates A Description For Users to know what the button does (looks bad if you use it all the time),
@@ -2386,7 +2338,6 @@ local Tab = Window:CreateTab({
 	ImageSource = "Material",
 	ShowTitle = true -- This will determine whether the big header text in the tab will show
 })
-
 
 local Button = Tab:CreateButton({
 	Name = "AntiCheat Remover",
@@ -2591,18 +2542,71 @@ local Toggle = Tab:CreateToggle({
     end
 }, "AntiAimToggle")
 
+local Players = game:GetService("Players")
+local player = Players.LocalPlayer
+
+-- GUI Setup
+local screenGui = Instance.new("ScreenGui")
+screenGui.Name = "BHopGUI"
+screenGui.ResetOnSpawn = false
+screenGui.Enabled = false -- Controlled by external toggle
+screenGui.Parent = player:WaitForChild("PlayerGui")
+
+-- BHop Button
+local bhopButton = Instance.new("TextButton")
+bhopButton.Name = "BHopButton"
+bhopButton.Size = UDim2.new(0, 120, 0, 50)
+bhopButton.Position = UDim2.new(0, 60, 0, 60)
+bhopButton.BackgroundColor3 = Color3.fromRGB(109, 110, 108)
+bhopButton.BackgroundTransparency = 0.3
+bhopButton.TextColor3 = Color3.fromRGB(255, 255, 255)
+bhopButton.Text = "BHop: OFF"
+bhopButton.Font = Enum.Font.Gotham
+bhopButton.TextSize = 14
+bhopButton.Active = true
+bhopButton.Draggable = true
+bhopButton.Parent = screenGui
+
+-- Rounded corners
+local uiCorner = Instance.new("UICorner")
+uiCorner.CornerRadius = UDim.new(0.3, 0)
+uiCorner.Parent = bhopButton
+
+-- BHop State
+local bhopEnabled = false
+
+-- Toggle Text + State
+bhopButton.MouseButton1Click:Connect(function()
+    bhopEnabled = not bhopEnabled
+    bhopButton.Text = "BHop: " .. (bhopEnabled and "ON" or "OFF")
+end)
+
+-- Auto BHop Loop
+task.spawn(function()
+    while true do
+        task.wait(0.03)
+        if bhopEnabled then
+            local character = player.Character
+            if character and character:FindFirstChild("Humanoid") then
+                local humanoid = character.Humanoid
+                if humanoid:GetState() == Enum.HumanoidStateType.Running or humanoid:GetState() == Enum.HumanoidStateType.Landed then
+                    humanoid:ChangeState(Enum.HumanoidStateType.Jumping)
+                end
+            end
+        end
+    end
+end)
+
+-- EXTERNAL TOGGLE (from your UI library)
+-- This controls visibility of the GUI
 local Toggle = Tab:CreateToggle({
-	Name = "VoidProtection",
-	Description = nil,
-	CurrentValue = false,
-	Callback = function(Value)
-		if Value then
-			VoidProtectionOn()
-		else
-			VoidProtectionOff()
-		end
-	end
-}, "Toggle")
+    Name = "BHop GUI Toggle",
+    Description = "Shows/hides the BHop toggle GUI",
+    CurrentValue = false,
+    Callback = function(Value)
+        screenGui.Enabled = Value
+    end
+}, "BHopGUIToggle")
 
 -- Spinbot Variable
 local spinbotEnabled = false
@@ -2981,7 +2985,7 @@ Tab:CreateDivider()
 
 local Paragraph = Tab:CreateParagraph({
 	Title = "[ UpdateLog ]",
-	Text = "? | Bugs Fixed 10"
+	Text = "Added BhopToggle in the protection tab | Bugs Fixed 26"
 })
 
 Luna:Notification({ 
