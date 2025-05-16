@@ -966,7 +966,7 @@ queueNotification("Made By Hmmm5650", "Script Started", 3, Color3.fromRGB(161, 1
 local Luna = loadstring(game:HttpGet("https://raw.githubusercontent.com/Nebula-Softworks/Luna-Interface-Suite/refs/heads/main/source.lua", true))()
 local Window = Luna:CreateWindow({
     Name = "SilverWare🍴",
-    Subtitle = "(v2.2) [ Only For Mobile ] ", -- VZ
+    Subtitle = "(v2.3) [ Only For Mobile ] ", -- VZ
     LogoID = "98445694743887",
     LoadingEnabled = false,
     LoadingTitle = "Starting SilverWare🍴",
@@ -1769,233 +1769,6 @@ local ColorPicker = Tab:CreateColorPicker({
         end
     end
 }, "AimlockFovColorPicker")
-
-local Tab = Window:CreateTab({
-    Name = "ToolMods",
-    Icon = "auto_fix_high",
-    ImageSource = "Material",
-    ShowTitle = true
-})
-
-local Label = Tab:CreateLabel({
-	Text = "[ Req, Sword ]",
-	Style = 1 -- Luna Labels Have 3 Styles : A Basic Label, A Green Information Label and A Red Warning Label. Look At The Following Image For More Details
-})
-
-local Label = Tab:CreateLabel({
-	Text = "[ May Get You Banned ]",
-	Style = 3 -- Luna Labels Have 3 Styles : A Basic Label, A Green Information Label and A Red Warning Label. Look At The Following Image For More Details
-})
-
--- Reach system variables
-local active = false
-local dmgEnabled = false 
-local visualizerEnabled = false
-local visualizerHighlightEnabled = false
-local currentReach = 3.5
-local visualizerColor = Color3.fromRGB(255, 0, 0)
-local highlightColor = Color3.fromRGB(255, 255, 0)
-
--- Visualizer setup
-local visualizer = Instance.new("Part") 
-visualizer.BrickColor = BrickColor.new(visualizerColor)
-visualizer.Transparency = 0.6 
-visualizer.Anchored = true 
-visualizer.CanCollide = false 
-visualizer.Size = Vector3.new(0.5, 0.5, 0.5) 
-visualizer.BottomSurface = Enum.SurfaceType.Smooth 
-visualizer.TopSurface = Enum.SurfaceType.Smooth 
-
--- Highlight setup (now specifically for the visualizer)
-local visualizerHighlight = Instance.new("Highlight")
-visualizerHighlight.Enabled = false
-visualizerHighlight.FillTransparency = 0.7
-visualizerHighlight.OutlineTransparency = 0
-visualizerHighlight.FillColor = highlightColor
-visualizerHighlight.OutlineColor = highlightColor
-visualizerHighlight.Parent = visualizer
-
--- Create UI elements
-local Toggle = Tab:CreateToggle({
-    Name = "Start HTBE",
-    Description = nil,
-    CurrentValue = false,
-    Callback = function(Value)
-        active = Value
-    end
-}, "vjfbjvToggle")
-
-Tab:CreateDivider()
-
-local Toggle = Tab:CreateToggle({
-    Name = "High Dmg",
-    Description = nil,
-    CurrentValue = false,
-    Callback = function(Value)
-        dmgEnabled = Value
-    end
-}, "nnkbToggle")
-
-local Toggle = Tab:CreateToggle({
-    Name = "Visualizer",
-    Description = nil,
-    CurrentValue = false,
-    Callback = function(Value)
-        visualizerEnabled = Value
-        if not Value then
-            visualizer.Parent = nil
-        end
-    end
-}, "bdnsmToggle")
-
-local Input = Tab:CreateInput({
-    Name = "HurtboxSize [Textbox]",
-    Description = nil,
-    PlaceholderText = "3.5",
-    CurrentValue = "3.5",
-    Numeric = true,
-    MaxCharacters = 5,
-    Enter = false,
-    Callback = function(Text)
-        currentReach = tonumber(Text) or 3.5
-    end
-}, "HHHInput")
-
-local Slider = Tab:CreateSlider({
-    Name = "HurtboxSize [Slider]",
-    Range = {0.1, 200}, -- The Minimum And Maximum Values Respectively
-    Increment = 5, -- Basically The Changing Value/Rounding Off
-    CurrentValue = 3.5, -- The Starting Value
-        Callback = function(Value)
-           currentReach = Value
-        end
-}, "HurtSzieSlider") -- A flag is the identifier for the configuration file, make sure every element has a different flag if you're using configuration saving to ensure no overlaps
-
-Tab:CreateDivider()
-
-local ColorPicker = Tab:CreateColorPicker({
-    Name = "Hurtbox Color",
-    Color = visualizerColor,
-    Callback = function(Value)
-        visualizerColor = Value
-        visualizer.Color = Value
-    end
-}, "ColojcmbvrPicker")
-
--- Reach functionality
-local function onHit(hit, handle)
-    local victim = hit.Parent:FindFirstChildOfClass("Humanoid") 
-    if victim and victim.Parent.Name ~= game.Players.LocalPlayer.Name then 
-        if dmgEnabled then 
-            for _,v in pairs(hit.Parent:GetChildren()) do 
-                if v:IsA("Part") then 
-                    firetouchinterest(v, handle, 0) 
-                    firetouchinterest(v, handle, 1) 
-                end 
-            end 
-        else 
-            firetouchinterest(hit, handle, 0) 
-            firetouchinterest(hit, handle, 1) 
-        end 
-    end 
-end 
-
-local function getWhiteList() 
-    local wl = {} 
-    for _,v in pairs(game.Players:GetPlayers()) do 
-        if v ~= game.Players.LocalPlayer then 
-            local char = v.Character 
-            if char then 
-                for _,q in pairs(char:GetChildren()) do 
-                    if q:IsA("Part") then 
-                        table.insert(wl, q) 
-                    end 
-                end 
-            end 
-        end 
-    end 
-    return wl 
-end 
-
--- Main loop
-game:GetService("RunService").RenderStepped:Connect(function() 
-    if not active then 
-        visualizer.Parent = nil
-        return 
-    end 
-    
-    local player = game.Players.LocalPlayer
-    local character = player.Character
-    if not character then return end
-    
-    local tool = character:FindFirstChildOfClass("Tool") 
-    if not tool then 
-        visualizer.Parent = nil
-        return 
-    end 
-    
-    local handle = tool:FindFirstChild("Handle") or tool:FindFirstChildOfClass("Part") 
-    if not handle then 
-        visualizer.Parent = nil
-        return 
-    end 
-    
-    -- Update visualizer if enabled
-    if visualizerEnabled then 
-        visualizer.Parent = workspace 
-        visualizer.Shape = Enum.PartType.Ball 
-        visualizer.Size = Vector3.new(currentReach, currentReach, currentReach) 
-        visualizer.CFrame = handle.CFrame 
-        visualizer.Color = visualizerColor
-    else 
-        visualizer.Parent = nil 
-    end 
-    
-    -- Check for hits
-    for _,v in pairs(game.Players:GetPlayers()) do 
-        local hrp = v.Character and v.Character:FindFirstChild("HumanoidRootPart") 
-        if hrp and handle then 
-            local mag = (hrp.Position - handle.Position).magnitude 
-            if mag <= currentReach then 
-                onHit(hrp, handle) 
-            end 
-        end 
-    end 
-end)
-
-local Button = Tab:CreateButton({
-	Name = "InstantKill",
-	Description = nil, -- Creates A Description For Users to know what the button does (looks bad if you use it all the time),
-    	Callback = function()
-         loadstring(game:HttpGet("https://raw.githubusercontent.com/hm5650/InstantKillig/refs/heads/main/Coolkillguithingy", true))()
-    	end
-})
-
-local Toggle = Tab:CreateToggle({
-    Name = "Auto Swing",
-    Description = nil,
-    CurrentValue = false,
-    Callback = function(Value)
-        -- The function that takes place when the toggle is switched
-        -- The variable (Value) is a boolean on whether the toggle is true or false
-
-        if Value then
-            -- Enable auto-swing
-            _G.AutoSwing = true
-            while _G.AutoSwing do
-                -- Trigger melee swing logic here
-                -- Replace this with the specific function or event to swing the melee weapon
-                pcall(function()
-                    game:GetService("Players").LocalPlayer.Character:FindFirstChildOfClass("Tool"):Activate()
-                end)
-                wait(0.1) -- Adjust the delay between swings as needed
-            end
-        else
-            -- Disable auto-swing
-            _G.AutoSwing = false
-        end
-    end
-}, "AutoSwingToggle")
 
 local Tab = Window:CreateTab({
     Name = "Hitbox Expansion",
@@ -2930,6 +2703,16 @@ local Button = Tab:CreateButton({
     	end
 })
 
+Tab:CreateSection("We Maybe did Remove the Hurtbox Expansion Tab For This Reason")
+
+local Button = Tab:CreateButton({
+	Name = "SwordBlox",
+	Description = "Our New Script :D", -- Creates A Description For Users to know what the button does (looks bad if you use it all the time),
+    	Callback = function()
+         loadstring(game:HttpGet("https://raw.githubusercontent.com/hm5650/SwordBlox/refs/heads/main/SB", true))()
+    	end
+})
+
 Tab:CreateDivider()
 Tab:CreateSection("Sum cool scripts that I found from walmart")
 
@@ -2985,7 +2768,7 @@ Tab:CreateDivider()
 
 local Paragraph = Tab:CreateParagraph({
 	Title = "[ UpdateLog ]",
-	Text = "Added BhopToggle in the protection tab | Bugs Fixed 26"
+	Text = "Removed Hurtbox Tab | Added A New Button in Misc ''SwordBlox'' | Bugs Fixed 75"
 })
 
 Luna:Notification({ 
