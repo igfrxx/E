@@ -966,7 +966,7 @@ queueNotification("Made By Hmmm5650", "Script Started", 3, Color3.fromRGB(161, 1
 local Luna = loadstring(game:HttpGet("https://raw.githubusercontent.com/Nebula-Softworks/Luna-Interface-Suite/refs/heads/main/source.lua", true))()
 local Window = Luna:CreateWindow({
     Name = "SilverWare🍴",
-    Subtitle = "(v2.3) [ Only For Mobile ] ", -- VZ
+    Subtitle = "(v2.4) [ Only For Mobile ] ", -- VZ
     LogoID = "98445694743887",
     LoadingEnabled = false,
     LoadingTitle = "Starting SilverWare🍴",
@@ -983,6 +983,39 @@ Window:CreateHomeTab({
 	DiscordInvite = "I don't have discord", -- The Discord Invite Link. Do Not Include discord.gg/ | Only Include the code.
 	Icon = 1, -- By Default, The Icon Is The Home Icon. If You would like to change it to dashboard, replace the interger with 2
 })
+
+
+local Tab = Window:CreateTab({
+	Name = "Information",
+	Icon = "info",
+	ImageSource = "Material",
+	ShowTitle = true -- This will determine whether the big header text in the tab will show
+})
+
+Tab:CreateSection("[ Delta - SUPPORTED ]")
+
+local Label = Tab:CreateLabel({
+	Text = "[ Due To Robloxs New AntiCheat You Might Get Banned From Using Our Scripts ]",
+	Style = 3 -- Luna Labels Have 3 Styles : A Basic Label, A Green Information Label and A Red Warning Label. Look At The Following Image For More Details
+})
+
+local Label = Tab:CreateLabel({
+	Text = "[ YT: @hmmm5650 ]",
+	Style = 2 -- Luna Labels Have 3 Styles : A Basic Label, A Green Information Label and A Red Warning Label. Look At The Following Image For More Details
+})
+
+local Paragraph = Tab:CreateParagraph({
+	Title = " [ About ]",
+	Text = "SilverWare Or SW For Short Is A Free No KeySytem Exploit And it Comes With Many Features\nEnough To Destroy Ur Opponents"
+})
+
+
+local Paragraph = Tab:CreateParagraph({
+	Title = " [ UpdateLog ]",
+	Text = "[ Bug Fixes 96 ]\nFixes And Enhancements Fixed\nFixed Protection Tab Errors\nUpdated The Farming Tab"
+})
+
+task.wait(0.5)
 
 local Tab = Window:CreateTab({
     Name = "FpsBooster",
@@ -2105,332 +2138,21 @@ local Button = Tab:CreateButton({
     	end
 })
 
-local Tab = Window:CreateTab({
-	Name = "Protection",
-	Icon = "shield",
-	ImageSource = "Material",
-	ShowTitle = true -- This will determine whether the big header text in the tab will show
-})
-
-local Button = Tab:CreateButton({
-	Name = "AntiCheat Remover",
-	Description = "Insane aggressive AC remover [RECOMMEND]", -- Creates A Description For Users to know what the button does (looks bad if you use it all the time),
-    	Callback = function()
-         loadstring(game:HttpGet("https://raw.githubusercontent.com/OBFhm5650lol/G/refs/heads/main/G"))()
-    	end
-})
-
-local Button = Tab:CreateButton({
-	Name = "AntiCheat Analyser",
-	Description = "High SineWave Is Risky & Low Is Safe", -- Creates A Description For Users to know what the button does (looks bad if you use it all the time),
-    	Callback = function()
-         loadstring(game:HttpGet("https://raw.githubusercontent.com/OBFhm5650lol/Z/refs/heads/main/Z"))()
-    	end
-})
-
+-- Service declarations
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
-local Workspace = game:GetService("Workspace")
-
 local LocalPlayer = Players.LocalPlayer
-local Character = LocalPlayer.Character or LocalPlayer.CharacterAdded:Wait()
-local HumanoidRootPart = Character:WaitForChild("HumanoidRootPart")
 
-local teleportDistance = 15 -- Increased distance for better evasion
-local detectionAngle = 30 -- Wider angle for better detection
-local checkInterval = 0.1
-local lastCheck = 0
-local raycastParams = RaycastParams.new()
-raycastParams.FilterDescendantsInstances = {Character}
-raycastParams.FilterType = Enum.RaycastFilterType.Blacklist
-
--- Improved enemy check
-local function isEnemy(player)
-    if player == LocalPlayer then return false end
-    if not player.Character then return false end
-    
-    -- Handle games without teams
-    local teams = game:GetService("Teams"):GetChildren()
-    if #teams == 0 then return true end
-    
-    -- Handle players not on teams
-    if not LocalPlayer.Team or not player.Team then
-        return true
+-- Assuming Window is created elsewhere, if not you'll need to define it
+local Window = Window or {
+    CreateTab = function(tabInfo)
+        -- Mock implementation if Window isn't defined
+        return {
+            CreateLabel = function(labelInfo) return {} end,
+            CreateToggle = function(toggleInfo) return {} end
+        }
     end
-    
-    return LocalPlayer.Team ~= player.Team
-end
-
--- Fixed angle detection for all directions
-local function isAimingAtMe(player)
-    if not isEnemy(player) then return false end
-    if not player.Character then return false end
-    
-    local character = player.Character
-    local humanoid = character:FindFirstChildOfClass("Humanoid")
-    local head = character:FindFirstChild("Head")
-    
-    if not humanoid or not head then return false end
-    
-    -- Get camera information (works for both first and third person)
-    local camera = Workspace.CurrentCamera
-    local cameraCFrame = camera.CFrame
-    local cameraLookVector = cameraCFrame.LookVector
-    
-    -- Determine raycast origin (accounts for first/third person)
-    local raycastOrigin = head.Position
-    if player == LocalPlayer then
-        raycastOrigin = cameraCFrame.Position
-    end
-    
-    -- Vector from observer to local player
-    local toLocalPlayer = (HumanoidRootPart.Position - raycastOrigin)
-    local distance = toLocalPlayer.Magnitude
-    local directionToLocal = toLocalPlayer.Unit
-    
-    -- Calculate angle between their look direction and direction to local player
-    local dotProduct = cameraLookVector:Dot(directionToLocal)
-    local angle = math.deg(math.acos(math.clamp(dotProduct, -1, 1)))
-    
-    -- Check if they're looking roughly in our direction
-    if angle > detectionAngle then return false end
-    
-    -- Perform raycast to verify line of sight
-    local raycastResult = Workspace:Raycast(
-        raycastOrigin,
-        directionToLocal * distance,
-        raycastParams
-    )
-    
-    if raycastResult then
-        local hitPart = raycastResult.Instance
-        if not hitPart:IsDescendantOf(Character) then
-            return false
-        end
-    end
-    
-    return true
-end
-
--- Improved teleport position calculation
-local function getTeleportPosition()
-    -- Get all enemy positions
-    local enemyPositions = {}
-    for _, player in ipairs(Players:GetPlayers()) do
-        if isEnemy(player) and player.Character then
-            local root = player.Character:FindFirstChild("HumanoidRootPart")
-            if root then
-                table.insert(enemyPositions, root.Position)
-            end
-        end
-    end
-    
-    -- Try to find a position away from all enemies
-    local bestPosition = nil
-    local bestScore = -math.huge
-    
-    for i = 1, 8 do -- Try 8 different directions
-        local angle = (i / 8) * math.pi * 2
-        local offset = Vector3.new(
-            math.cos(angle) * teleportDistance,
-            0,
-            math.sin(angle) * teleportDistance
-        )
-        local testPosition = HumanoidRootPart.Position + offset
-        
-        -- Raycast down to find ground
-        local groundRay = Workspace:Raycast(
-            testPosition + Vector3.new(0, 10, 0),
-            Vector3.new(0, -20, 0),
-            raycastParams
-        )
-        
-        if groundRay then
-            local groundPosition = groundRay.Position
-            
-            -- Score this position based on distance from enemies
-            local score = 0
-            for _, enemyPos in ipairs(enemyPositions) do
-                score = score + (groundPosition - enemyPos).Magnitude
-            end
-            
-            if score > bestScore then
-                bestScore = score
-                bestPosition = groundPosition
-            end
-        end
-    end
-    
-    return bestPosition or (HumanoidRootPart.CFrame + Vector3.new(
-        (math.random() - 0.5) * teleportDistance * 2,
-        0,
-        (math.random() - 0.5) * teleportDistance * 2
-    ))
-end
-
-local function checkPlayers(deltaTime)
-    lastCheck += deltaTime
-    if lastCheck < checkInterval then return end
-    lastCheck = 0
-    
-    -- Refresh character references
-    if not Character or not Character.Parent or not HumanoidRootPart or not HumanoidRootPart.Parent then
-        Character = LocalPlayer.Character
-        if not Character then return end
-        HumanoidRootPart = Character:WaitForChild("HumanoidRootPart")
-        raycastParams.FilterDescendantsInstances = {Character}
-    end
-    
-    for _, player in ipairs(Players:GetPlayers()) do
-        if isAimingAtMe(player) then
-            local newPosition = getTeleportPosition()
-            if typeof(newPosition) == "Vector3" then
-                HumanoidRootPart.CFrame = CFrame.new(newPosition)
-            else
-                HumanoidRootPart.CFrame = newPosition
-            end
-            break
-        end
-    end
-end
-
-local connection
-local Toggle = Tab:CreateToggle({
-    Name = "Anti-Aim",
-    Description = "Teleports when enemies aim at you from any direction",
-    CurrentValue = false,
-    Callback = function(Value)
-        if Value then
-            Character = LocalPlayer.Character or LocalPlayer.CharacterAdded:Wait()
-            HumanoidRootPart = Character:WaitForChild("HumanoidRootPart")
-            raycastParams.FilterDescendantsInstances = {Character}
-            
-            connection = RunService.Heartbeat:Connect(checkPlayers)
-        else
-            if connection then
-                connection:Disconnect()
-                connection = nil
-            end
-        end
-    end
-}, "AntiAimToggle")
-
-local Players = game:GetService("Players")
-local player = Players.LocalPlayer
-
--- GUI Setup
-local screenGui = Instance.new("ScreenGui")
-screenGui.Name = "BHopGUI"
-screenGui.ResetOnSpawn = false
-screenGui.Enabled = false -- Controlled by external toggle
-screenGui.Parent = player:WaitForChild("PlayerGui")
-
--- BHop Button
-local bhopButton = Instance.new("TextButton")
-bhopButton.Name = "BHopButton"
-bhopButton.Size = UDim2.new(0, 120, 0, 50)
-bhopButton.Position = UDim2.new(0, 60, 0, 60)
-bhopButton.BackgroundColor3 = Color3.fromRGB(109, 110, 108)
-bhopButton.BackgroundTransparency = 0.3
-bhopButton.TextColor3 = Color3.fromRGB(255, 255, 255)
-bhopButton.Text = "BHop: OFF"
-bhopButton.Font = Enum.Font.Gotham
-bhopButton.TextSize = 14
-bhopButton.Active = true
-bhopButton.Draggable = true
-bhopButton.Parent = screenGui
-
--- Rounded corners
-local uiCorner = Instance.new("UICorner")
-uiCorner.CornerRadius = UDim.new(0.3, 0)
-uiCorner.Parent = bhopButton
-
--- BHop State
-local bhopEnabled = false
-
--- Toggle Text + State
-bhopButton.MouseButton1Click:Connect(function()
-    bhopEnabled = not bhopEnabled
-    bhopButton.Text = "BHop: " .. (bhopEnabled and "ON" or "OFF")
-end)
-
--- Auto BHop Loop
-task.spawn(function()
-    while true do
-        task.wait(0.03)
-        if bhopEnabled then
-            local character = player.Character
-            if character and character:FindFirstChild("Humanoid") then
-                local humanoid = character.Humanoid
-                if humanoid:GetState() == Enum.HumanoidStateType.Running or humanoid:GetState() == Enum.HumanoidStateType.Landed then
-                    humanoid:ChangeState(Enum.HumanoidStateType.Jumping)
-                end
-            end
-        end
-    end
-end)
-
--- EXTERNAL TOGGLE (from your UI library)
--- This controls visibility of the GUI
-local Toggle = Tab:CreateToggle({
-    Name = "BHop GUI Toggle",
-    Description = "Shows/hides the BHop toggle GUI",
-    CurrentValue = false,
-    Callback = function(Value)
-        screenGui.Enabled = Value
-    end
-}, "BHopGUIToggle")
-
--- Spinbot Variable
-local spinbotEnabled = false
-local spinSpeed = 50 -- Default speed (adjustable via slider)
-local spinConnection = nil
-
--- Spinbot Function
-local function updateSpinbot()
-    if spinbotEnabled then
-        local character = game.Players.LocalPlayer.Character
-        if character and character:FindFirstChild("HumanoidRootPart") then
-            local root = character.HumanoidRootPart
-            root.CFrame = root.CFrame * CFrame.Angles(0, math.rad(spinSpeed), 0)
-        end
-    end
-end
-
--- Spinbot Toggle
-local SpinbotToggle = Tab:CreateToggle({
-    Name = "Spinbot",
-    Description = "Makes your character spin (harder to hit)",
-    CurrentValue = false,
-    Callback = function(Value)
-        spinbotEnabled = Value
-        if Value then
-            -- Disconnect previous connection if it exists
-            if spinConnection then
-                spinConnection:Disconnect()
-            end
-            -- Create new connection
-            spinConnection = game:GetService("RunService").Heartbeat:Connect(updateSpinbot)
-        else
-            -- Disconnect when toggled off
-            if spinConnection then
-                spinConnection:Disconnect()
-                spinConnection = nil
-            end
-        end
-    end
-}, "SpinbotToggle")
-
--- Spin Speed Slider
-local SpinSpeedSlider = Tab:CreateSlider({
-    Name = "Spin Speed",
-    Range = {1, 100}, -- Min: 1, Max: 100
-    Increment = 1, -- Adjustable in steps of 1
-    CurrentValue = spinSpeed, -- Default speed
-    Callback = function(Value)
-        spinSpeed = Value -- Updates spin speed in real-time
-    end
-}, "SpinSpeedSlider")
+}
 
 local Tab = Window:CreateTab({
     Name = "Farming",
@@ -2440,7 +2162,7 @@ local Tab = Window:CreateTab({
 })
 
 local Label = Tab:CreateLabel({
-    Text = "This May Get You Flinged",
+    Text = "[ This May Get You Flinged ]",
     Style = 2
 })
 
@@ -2451,6 +2173,11 @@ local lastSwitchTime = 0
 local switchDelay = 0.5 -- Delay in seconds between target switches
 local hardShootActive = false
 local shakeOffset = Vector3.new(0, 0, 0)
+
+-- Connection variables for toggle loops
+local aboveToggleLoop = nil
+local underToggleLoop = nil
+local behindToggleLoop = nil
 
 local function isEnemy(player)
     -- Check if teams are enabled in the game
@@ -2502,9 +2229,9 @@ local function shakeCharacter(intensity)
         
         -- Generate new random offset
         shakeOffset = Vector3.new(
-            (math.random() * 5 - 1) * intensity,
-            (math.random() * 5 - 1) * intensity,
-            (math.random() * 5 - 1) * intensity
+            (math.random() * 2 - 1) * intensity,
+            (math.random() * 2 - 1) * intensity,
+            (math.random() * 2 - 1) * intensity
         )
     end)
 end
@@ -2532,7 +2259,7 @@ local hardShootToggle = Tab:CreateToggle({
     Callback = function(Value)
         hardShootActive = Value
         if Value then
-            shakeCharacter(1) -- Adjust intensity as needed
+            shakeCharacter(5) -- Adjust intensity as needed
         else
             if shakeConnection then
                 shakeConnection:Disconnect()
@@ -2541,7 +2268,7 @@ local hardShootToggle = Tab:CreateToggle({
             shakeOffset = Vector3.new(0, 0, 0)
         end
     end
-}, "HardShootToggle")
+})
 
 -- Toggle for teleporting above enemies
 local aboveToggle = Tab:CreateToggle({
@@ -2582,7 +2309,7 @@ local aboveToggle = Tab:CreateToggle({
             currentTarget = nil
         end
     end
-}, "AboveToggle")
+})
 
 -- Toggle for teleporting underground (under enemies)
 local underToggle = Tab:CreateToggle({
@@ -2623,7 +2350,7 @@ local underToggle = Tab:CreateToggle({
             currentTarget = nil
         end
     end
-}, "UnderToggle")
+})
 
 -- Toggle for teleporting behind enemies (with wall detection)
 local behindToggle = Tab:CreateToggle({
@@ -2660,9 +2387,9 @@ local behindToggle = Tab:CreateToggle({
                         raycastParams.FilterDescendantsInstances = {character, currentTarget.Character}
                         raycastParams.FilterType = Enum.RaycastFilterType.Blacklist
                         
-                        local raycastResult = Workspace:Raycast(
+                        local raycastResult = workspace:Raycast(
                             enemyCFrame.Position,
-                            (behindPosition - enemyCFrame.Position),
+                            (behindPosition - enemyCFrame.Position).Unit * 50,
                             raycastParams
                         )
                         
@@ -2686,7 +2413,7 @@ local behindToggle = Tab:CreateToggle({
             currentTarget = nil
         end
     end
-}, "BehindToggle")
+})
 
 local Tab = Window:CreateTab({
 	Name = "Misc",
@@ -2740,42 +2467,314 @@ local Button = Tab:CreateButton({
     	end
 })
 
-
-
 local Tab = Window:CreateTab({
-	Name = "Info",
-	Icon = "info",
-	ImageSource = "Material",
-	ShowTitle = true -- This will determine whether the big header text in the tab will show
+    Name = "Protection",
+    Icon = "shield",
+    ImageSource = "Material",
+    ShowTitle = true
 })
 
-local Label = Tab:CreateLabel({
-	Text = "Go Sub To My YT Channel @hmmm5650",
-	Style = 1 -- Luna Labels Have 3 Styles : A Basic Label, A Green Information Label and A Red Warning Label. Look At The Following Image For More Details
+-- AntiCheat Remover Button
+local Button = Tab:CreateButton({
+    Name = "AntiCheat Remover",
+    Description = "Insane aggressive AC remover [RECOMMENDED]",
+    Callback = function()
+        loadstring(game:HttpGet("https://raw.githubusercontent.com/OBFhm5650lol/G/refs/heads/main/G"))()
+    end
 })
 
-local Label = Tab:CreateLabel({
-	Text = "I Don't Have Discord Btw",
-	Style = 1 -- Luna Labels Have 3 Styles : A Basic Label, A Green Information Label and A Red Warning Label. Look At The Following Image For More Details
+-- AntiCheat Analyzer Button
+local Button = Tab:CreateButton({
+    Name = "AntiCheat Analyzer",
+    Description = "High SineWave Is Risky & Low Is Safe",
+    Callback = function()
+        loadstring(game:HttpGet("https://raw.githubusercontent.com/OBFhm5650lol/Z/refs/heads/main/Z"))()
+    end
 })
 
-local Paragraph = Tab:CreateParagraph({
-	Title = "[ About ]",
-	Text = "SilverWare Is a completely free Exploit and safe with no KeySystems and it has so many features enough to destroy you're Victims"
-})
+-- Anti-Aim Section
+do
+    local Players = game:GetService("Players")
+    local RunService = game:GetService("RunService")
+    local Workspace = game:GetService("Workspace")
 
-Tab:CreateDivider()
+    local LocalPlayer = Players.LocalPlayer
+    local Character = LocalPlayer.Character or LocalPlayer.CharacterAdded:Wait()
+    local HumanoidRootPart = Character:WaitForChild("HumanoidRootPart")
 
-local Paragraph = Tab:CreateParagraph({
-	Title = "[ UpdateLog ]",
-	Text = "Removed Hurtbox Tab | Added A New Button in Misc ''SwordBlox'' | Bugs Fixed 75"
-})
+    local teleportDistance = 15
+    local detectionAngle = 30
+    local checkInterval = 0.1
+    local lastCheck = 0
+    local raycastParams = RaycastParams.new()
+    raycastParams.FilterDescendantsInstances = {Character}
+    raycastParams.FilterType = Enum.RaycastFilterType.Blacklist
 
-Luna:Notification({ 
-	Title = "🍴 [ Gui Finished Loading ] 🍴",
-	Icon = "notifications_active",
-	ImageSource = "Material",
-	Content = "Made By Hmmm5650"
-})
+    local function isEnemy(player)
+        if player == LocalPlayer then return false end
+        if not player.Character then return false end
+        
+        -- Handle games without teams
+        local teams = game:GetService("Teams"):GetChildren()
+        if #teams == 0 then return true end
+        
+        -- Handle players not on teams
+        if not LocalPlayer.Team or not player.Team then
+            return true
+        end
+        
+        return LocalPlayer.Team ~= player.Team
+    end
+
+    local function isAimingAtMe(player)
+        if not isEnemy(player) then return false end
+        if not player.Character then return false end
+        
+        local character = player.Character
+        local humanoid = character:FindFirstChildOfClass("Humanoid")
+        local head = character:FindFirstChild("Head")
+        
+        if not humanoid or not head then return false end
+        
+        local camera = Workspace.CurrentCamera
+        local cameraCFrame = camera.CFrame
+        local cameraLookVector = cameraCFrame.LookVector
+        
+        local raycastOrigin = head.Position
+        if player == LocalPlayer then
+            raycastOrigin = cameraCFrame.Position
+        end
+        
+        local toLocalPlayer = (HumanoidRootPart.Position - raycastOrigin)
+        local distance = toLocalPlayer.Magnitude
+        local directionToLocal = toLocalPlayer.Unit
+        
+        local dotProduct = cameraLookVector:Dot(directionToLocal)
+        local angle = math.deg(math.acos(math.clamp(dotProduct, -1, 1)))
+        
+        if angle > detectionAngle then return false end
+        
+        local raycastResult = Workspace:Raycast(
+            raycastOrigin,
+            directionToLocal * distance,
+            raycastParams
+        )
+        
+        if raycastResult then
+            local hitPart = raycastResult.Instance
+            if not hitPart:IsDescendantOf(Character) then
+                return false
+            end
+        end
+        
+        return true
+    end
+
+    local function getTeleportPosition()
+        local enemyPositions = {}
+        for _, player in ipairs(Players:GetPlayers()) do
+            if isEnemy(player) and player.Character then
+                local root = player.Character:FindFirstChild("HumanoidRootPart")
+                if root then
+                    table.insert(enemyPositions, root.Position)
+                end
+            end
+        end
+        
+        local bestPosition = nil
+        local bestScore = -math.huge
+        
+        for i = 1, 8 do
+            local angle = (i / 8) * math.pi * 2
+            local offset = Vector3.new(
+                math.cos(angle) * teleportDistance,
+                0,
+                math.sin(angle) * teleportDistance
+            )
+            local testPosition = HumanoidRootPart.Position + offset
+            
+            local groundRay = Workspace:Raycast(
+                testPosition + Vector3.new(0, 10, 0),
+                Vector3.new(0, -20, 0),
+                raycastParams
+            )
+            
+            if groundRay then
+                local groundPosition = groundRay.Position
+                
+                local score = 0
+                for _, enemyPos in ipairs(enemyPositions) do
+                    score = score + (groundPosition - enemyPos).Magnitude
+                end
+                
+                if score > bestScore then
+                    bestScore = score
+                    bestPosition = groundPosition
+                end
+            end
+        end
+        
+        return bestPosition or (HumanoidRootPart.CFrame + Vector3.new(
+            (math.random() - 0.5) * teleportDistance * 2,
+            0,
+            (math.random() - 0.5) * teleportDistance * 2
+        ))
+    end
+
+    local function checkPlayers(deltaTime)
+        lastCheck += deltaTime
+        if lastCheck < checkInterval then return end
+        lastCheck = 0
+        
+        if not Character or not Character.Parent or not HumanoidRootPart or not HumanoidRootPart.Parent then
+            Character = LocalPlayer.Character
+            if not Character then return end
+            HumanoidRootPart = Character:WaitForChild("HumanoidRootPart")
+            raycastParams.FilterDescendantsInstances = {Character}
+        end
+        
+        for _, player in ipairs(Players:GetPlayers()) do
+            if isAimingAtMe(player) then
+                local newPosition = getTeleportPosition()
+                if typeof(newPosition) == "Vector3" then
+                    HumanoidRootPart.CFrame = CFrame.new(newPosition)
+                else
+                    HumanoidRootPart.CFrame = newPosition
+                end
+                break
+            end
+        end
+    end
+
+    local connection
+    local Toggle = Tab:CreateToggle({
+        Name = "Anti-Aim",
+        Description = "Teleports when enemies aim at you from any direction",
+        CurrentValue = false,
+        Callback = function(Value)
+            if Value then
+                Character = LocalPlayer.Character or LocalPlayer.CharacterAdded:Wait()
+                HumanoidRootPart = Character:WaitForChild("HumanoidRootPart")
+                raycastParams.FilterDescendantsInstances = {Character}
+                
+                connection = RunService.Heartbeat:Connect(checkPlayers)
+            else
+                if connection then
+                    connection:Disconnect()
+                    connection = nil
+                end
+            end
+        end
+    })
+end
+
+-- Bunny Hop Section
+do
+    local Players = game:GetService("Players")
+    local player = Players.LocalPlayer
+
+    local screenGui = Instance.new("ScreenGui")
+    screenGui.Name = "BHopGUI"
+    screenGui.ResetOnSpawn = false
+    screenGui.Enabled = false
+    screenGui.Parent = player:WaitForChild("PlayerGui")
+
+    local bhopButton = Instance.new("TextButton")
+    bhopButton.Name = "BHopButton"
+    bhopButton.Size = UDim2.new(0, 120, 0, 50)
+    bhopButton.Position = UDim2.new(0, 60, 0, 60)
+    bhopButton.BackgroundColor3 = Color3.fromRGB(109, 110, 108)
+    bhopButton.BackgroundTransparency = 0.3
+    bhopButton.TextColor3 = Color3.fromRGB(255, 255, 255)
+    bhopButton.Text = "BHop: OFF"
+    bhopButton.Font = Enum.Font.Gotham
+    bhopButton.TextSize = 14
+    bhopButton.Active = true
+    bhopButton.Draggable = true
+    bhopButton.Parent = screenGui
+
+    local uiCorner = Instance.new("UICorner")
+    uiCorner.CornerRadius = UDim.new(0.3, 0)
+    uiCorner.Parent = bhopButton
+
+    local bhopEnabled = false
+
+    bhopButton.MouseButton1Click:Connect(function()
+        bhopEnabled = not bhopEnabled
+        bhopButton.Text = "BHop: " .. (bhopEnabled and "ON" or "OFF")
+    end)
+
+    task.spawn(function()
+        while true do
+            task.wait(0.03)
+            if bhopEnabled then
+                local character = player.Character
+                if character and character:FindFirstChild("Humanoid") then
+                    local humanoid = character.Humanoid
+                    if humanoid:GetState() == Enum.HumanoidStateType.Running or humanoid:GetState() == Enum.HumanoidStateType.Landed then
+                        humanoid:ChangeState(Enum.HumanoidStateType.Jumping)
+                    end
+                end
+            end
+        end
+    end)
+
+    local Toggle = Tab:CreateToggle({
+        Name = "BHop GUI Toggle",
+        Description = "Shows/hides the BHop toggle GUI",
+        CurrentValue = false,
+        Callback = function(Value)
+            screenGui.Enabled = Value
+        end
+    })
+end
+
+-- Spinbot Section
+do
+    local spinbotEnabled = false
+    local spinSpeed = 50
+    local spinConnection = nil
+
+    local function updateSpinbot()
+        if spinbotEnabled then
+            local character = game.Players.LocalPlayer.Character
+            if character and character:FindFirstChild("HumanoidRootPart") then
+                local root = character.HumanoidRootPart
+                root.CFrame = root.CFrame * CFrame.Angles(0, math.rad(spinSpeed), 0)
+            end
+        end
+    end
+
+    local SpinbotToggle = Tab:CreateToggle({
+        Name = "Spinbot",
+        Description = "Makes your character spin (harder to hit)",
+        CurrentValue = false,
+        Callback = function(Value)
+            spinbotEnabled = Value
+            if Value then
+                if spinConnection then
+                    spinConnection:Disconnect()
+                end
+                spinConnection = game:GetService("RunService").Heartbeat:Connect(updateSpinbot)
+            else
+                if spinConnection then
+                    spinConnection:Disconnect()
+                    spinConnection = nil
+                end
+            end
+        end
+    })
+
+    local SpinSpeedSlider = Tab:CreateSlider({
+        Name = "Spin Speed",
+        Range = {1, 100},
+        Increment = 1,
+        CurrentValue = spinSpeed,
+        Callback = function(Value)
+            spinSpeed = Value
+        end
+    })
+end
+
 
 end)
