@@ -2466,6 +2466,2474 @@ local Button = Tab:CreateButton({
          loadstring(game:HttpGet('https://skullhub.xyz/loader.lua'))()
     	end
 })
+pcall(function()
+
+    -- Services
+local Players = game:GetService("Players")
+local TweenService = game:GetService("TweenService")
+local RunService = game:GetService("RunService")
+local UserInputService = game:GetService("UserInputService")
+local SoundService = game:GetService("SoundService")
+local Teams = game:GetService("Teams")
+local Lighting = game:GetService("Lighting")
+local HttpService = game:GetService("HttpService")
+local Workspace = game:GetService("Workspace")
+
+-- StoredVariables
+
+    -- memCleaner with better error handling
+    local function memCleaner()
+        local success, result = pcall(function()
+            -- Get initial memory usage
+            local before = collectgarbage("count")
+            
+            -- Print initial memory (convert KB to MB)
+            print("[Memory Cleaner] Starting cleanup...")
+            print(string.format("[Memory Cleaner] Current memory: %.2f MB", before/1024))
+            
+            -- Force garbage collection twice (recommended by Lua docs)
+            for i = 1, 2 do
+                collectgarbage("collect")
+            end
+            
+            -- Additional Roblox-specific cleanup
+            game:GetService("ContentProvider"):SetBaseUrl("http://www.roblox.com")
+            
+            -- Get final memory usage
+            local after = collectgarbage("count")
+            
+            -- Print results
+            print(string.format("[Memory Cleaner] Memory after cleanup: %.2f MB", after/1024))
+            print(string.format("[Memory Cleaner] Freed: %.2f MB", (before-after)/1024))
+            
+            return (before-after)/1024
+        end)
+        
+        if not success then
+            return handleError(result, "memCleaner")
+        end
+        return result
+    end
+
+-- Esp Variable
+
+-- Configurations
+local highlightEspEnabled = false
+local nameEspEnabled = false
+local boxEspEnabled = false
+local distanceEspEnabled = false
+local healthEspEnabled = false
+local espColor = Color3.fromRGB(86, 171, 128)
+local espObjects = {}
+local espDistanceFormat = "%.1f" -- Format for distance display (1 decimal place)
+local maxDistance = 1000 -- Max distance to show ESP
+local teamCheckEnabled = true -- Whether to only show enemies
+
+-- Function to safely get player from character
+local function getPlayerFromCharacter(character)
+    for _, player in ipairs(Players:GetPlayers()) do
+        if player.Character == character then
+            return player
+        end
+    end
+    return nil
+end
+
+-- Function to check if a player is an enemy (teamcheck)
+local function isEnemy(player)
+    if not teamCheckEnabled then
+        return player ~= Players.LocalPlayer
+    end
+    
+    local localPlayer = Players.LocalPlayer
+    if not localPlayer or not player or player == localPlayer then
+        return false
+    end
+
+    local localTeam = localPlayer.Team
+    local targetTeam = player.Team
+
+    -- If the game doesn't use teams, treat all players (except self) as enemies
+    if Teams:GetChildren() == nil or #Teams:GetChildren() == 0 then
+        return true
+    end
+
+    -- If teams exist, check if they're different
+    return localTeam ~= targetTeam
+end
+
+-- Function to calculate distance between two positions
+local function calculateDistance(position1, position2)
+    if not position1 or not position2 then return 0 end
+    return (position1 - position2).Magnitude
+end
+
+-- Function to format distance for display
+local function formatDistance(distance)
+    return string.format(espDistanceFormat, distance)
+end
+
+-- Function to update ESP information (distance, health, etc)
+local function updateEspInfo()
+    local localPlayer = Players.LocalPlayer
+    if not localPlayer or not localPlayer.Character then return end
+    
+    local localRoot = localPlayer.Character:FindFirstChild("HumanoidRootPart")
+    if not localRoot then return end
+    
+    for player, objects in pairs(espObjects) do
+        if player and player:IsA("Player") and player.Character then
+            local character = player.Character
+            local humanoidRootPart = character:FindFirstChild("HumanoidRootPart")
+            local humanoid = character:FindFirstChildOfClass("Humanoid")
+            
+            if humanoidRootPart then
+                -- Update distance display
+                if distanceEspEnabled then
+                    local distance = calculateDistance(localRoot.Position, humanoidRootPart.Position)
+                    if distance <= maxDistance then
+                        for _, obj in pairs(objects) do
+                            if obj:IsA("BillboardGui") and obj.Name == "SilverWareNameEsp" then
+                                local textLabel = obj:FindFirstChild("TextLabel")
+                                if textLabel then
+                                    local displayText = player.Name
+                                    if healthEspEnabled and humanoid then
+                                        displayText = displayText .. "\nHP: " .. math.floor(humanoid.Health) .. "/" .. math.floor(humanoid.MaxHealth)
+                                    end
+                                    if distanceEspEnabled then
+                                        displayText = displayText .. "\n" .. formatDistance(distance) .. "m"
+                                    end
+                                    textLabel.Text = displayText
+                                end
+                            end
+                        end
+                    else
+                        -- Hide ESP if beyond max distance
+                        for _, obj in pairs(objects) do
+                            if obj and obj.Parent then
+                                obj.Enabled = false
+                            end
+                        end
+                    end
+                end
+                
+                -- Update health color if health ESP is enabled
+                if healthEspEnabled and humanoid then
+                    local healthPercent = humanoid.Health / humanoid.MaxHealth
+                    local healthColor
+                    if healthPercent > 0.7 then
+                        healthColor = Color3.new(0, 1, 0) -- Green
+                    elseif healthPercent > 0.3 then
+                        healthColor = Color3.new(1, 1, 0) -- Yellow
+                    else
+                        healthColor = Color3.new(1, 0, 0) -- Red
+                    end
+                    
+                    for _, obj in pairs(objects) do
+                        if obj:IsA("Highlight") then
+                            obj.FillColor = healthColor
+                            obj.OutlineColor = healthColor
+                        elseif obj:IsA("BoxHandleAdornment") then
+                            obj.Color3 = healthColor
+                        elseif obj:IsA("BillboardGui") and obj:FindFirstChild("TextLabel") then
+                            obj.TextLabel.TextColor3 = healthColor
+                        end
+                    end
+                end
+            end
+        end
+    end
+end
+
+-- Function to create ESP
+local function createEsp(player)
+    if not player or not player:IsA("Player") or not player.Character then return end
+
+    local character = player.Character
+    if not character or not character.Parent then return end
+    
+    local humanoidRootPart = character:FindFirstChild("HumanoidRootPart")
+    local humanoid = character:FindFirstChildOfClass("Humanoid")
+    if not humanoidRootPart or not humanoid then return end
+
+    -- Remove existing ESP if it exists
+    if espObjects[player] then
+        for _, obj in pairs(espObjects[player]) do
+            if obj and obj.Parent then
+                obj:Destroy()
+            end
+        end
+        espObjects[player] = nil
+    end
+
+    -- Only create ESP for enemies if team check is enabled
+    if teamCheckEnabled and not isEnemy(player) then return end
+
+    -- Create new ESP objects
+    espObjects[player] = {}
+
+    -- Highlight ESP
+    if highlightEspEnabled then
+        local highlight = Instance.new("Highlight")
+        highlight.Name = "SilverWareHighlight"
+        highlight.Adornee = character
+        highlight.FillColor = espColor
+        highlight.OutlineColor = espColor
+        highlight.FillTransparency = 0.5
+        highlight.OutlineTransparency = 0
+        highlight.Parent = character
+        table.insert(espObjects[player], highlight)
+    end
+
+    -- Name ESP (also shows distance and health if enabled)
+    if nameEspEnabled or distanceEspEnabled or healthEspEnabled then
+        local billboard = Instance.new("BillboardGui")
+        billboard.Name = "SilverWareNameEsp"
+        billboard.Adornee = humanoidRootPart
+        billboard.Size = UDim2.new(0, 200, 0, 60) -- Larger to accommodate extra info
+        billboard.StudsOffset = Vector3.new(0, 3, 0)
+        billboard.AlwaysOnTop = true
+        
+        local textLabel = Instance.new("TextLabel")
+        textLabel.Text = player.Name
+        textLabel.Size = UDim2.new(1, 0, 1, 0)
+        textLabel.BackgroundTransparency = 1
+        textLabel.TextStrokeTransparency = 0
+        textLabel.TextColor3 = espColor
+        textLabel.TextStrokeColor3 = Color3.new(0, 0, 0)
+        textLabel.TextScaled = false
+        textLabel.TextSize = 14
+        textLabel.Font = Enum.Font.GothamBold
+        textLabel.TextYAlignment = Enum.TextYAlignment.Top
+        textLabel.Parent = billboard
+        
+        if humanoidRootPart and humanoidRootPart.Parent then
+            billboard.Parent = humanoidRootPart
+            table.insert(espObjects[player], billboard)
+        else
+            billboard:Destroy()
+        end
+    end
+
+    -- Box ESP
+    if boxEspEnabled then
+        local box = Instance.new("BoxHandleAdornment")
+        box.Name = "SilverWareBoxEsp"
+        box.Adornee = humanoidRootPart
+        box.AlwaysOnTop = true
+        box.ZIndex = 10
+        box.Size = humanoidRootPart.Size * 1.5
+        box.Transparency = 0.5
+        box.Color3 = espColor
+        
+        if humanoidRootPart and humanoidRootPart.Parent then
+            box.Parent = humanoidRootPart
+            table.insert(espObjects[player], box)
+        else
+            box:Destroy()
+        end
+    end
+    
+    -- Tracer ESP (line from bottom of screen to player)
+    if tracerEspEnabled then
+        local tracer = Instance.new("Frame")
+        tracer.Name = "SilverWareTracerEsp"
+        tracer.BackgroundColor3 = espColor
+        tracer.BorderSizePixel = 0
+        tracer.Size = UDim2.new(0, 1, 0, 1000) -- Long vertical line
+        tracer.AnchorPoint = Vector2.new(0.5, 1)
+        tracer.Position = UDim2.new(0.5, 0, 1, 0)
+        tracer.Parent = game:GetService("CoreGui")
+        
+        -- Store reference to update position later
+        table.insert(espObjects[player], tracer)
+    end
+end
+
+-- Function to update ESP color
+local function updateEspColor(newColor)
+    espColor = newColor
+    for player, objects in pairs(espObjects) do
+        if player and player:IsA("Player") then
+            for _, obj in pairs(objects) do
+                if obj and obj.Parent then
+                    if obj:IsA("Highlight") then
+                        if not healthEspEnabled then
+                            obj.FillColor = newColor
+                            obj.OutlineColor = newColor
+                        end
+                    elseif obj:IsA("BillboardGui") and obj:FindFirstChild("TextLabel") then
+                        if not healthEspEnabled then
+                            obj.TextLabel.TextColor3 = newColor
+                        end
+                    elseif obj:IsA("BoxHandleAdornment") then
+                        if not healthEspEnabled then
+                            obj.Color3 = newColor
+                        end
+                    elseif obj:IsA("Frame") and obj.Name == "SilverWareTracerEsp" then
+                        obj.BackgroundColor3 = newColor
+                    end
+                end
+            end
+        end
+    end
+end
+
+-- Function to toggle ESP for all players
+local function toggleEsp()
+    for _, player in ipairs(Players:GetPlayers()) do
+        if player and player:IsA("Player") then
+            createEsp(player)
+        end
+    end
+end
+
+-- Function to clear all ESP
+local function clearEsp()
+    for player, objects in pairs(espObjects) do
+        if objects then
+            for _, obj in pairs(objects) do
+                if obj and obj.Parent then
+                    obj:Destroy()
+                end
+            end
+        end
+    end
+    espObjects = {}
+end
+
+-- Handle player respawns
+local function onCharacterAdded(character, player)
+    if not character or not character.Parent then return end
+    
+    -- Wait for character to fully load
+    local humanoidRootPart = character:WaitForChild("HumanoidRootPart", 5)
+    local humanoid = character:WaitForChild("Humanoid", 5)
+    
+    if not humanoidRootPart or not humanoid then return end
+    
+    -- Only create ESP if at least one ESP type is enabled and player is an enemy (if team check is on)
+    local shouldCreateEsp = (highlightEspEnabled or nameEspEnabled or boxEspEnabled or distanceEspEnabled or healthEspEnabled) and
+                          (not teamCheckEnabled or isEnemy(player))
+    
+    if shouldCreateEsp then
+        createEsp(player)
+    end
+    
+    -- Handle future respawns
+    humanoid.Died:Connect(function()
+        -- Clean up ESP when player dies
+        if espObjects[player] then
+            for _, obj in pairs(espObjects[player]) do
+                if obj and obj.Parent then
+                    obj:Destroy()
+                end
+            end
+            espObjects[player] = nil
+        end
+        
+        -- Recreate ESP when player respawns if conditions are met
+        player.CharacterAdded:Connect(function(newCharacter)
+            task.wait(1) -- Wait for character to load
+            
+            local shouldRecreate = (highlightEspEnabled or nameEspEnabled or boxEspEnabled or distanceEspEnabled or healthEspEnabled) and
+                                 (not teamCheckEnabled or isEnemy(player))
+            
+            if shouldRecreate then
+                createEsp(player)
+            end
+        end)
+    end)
+end
+
+-- Player added/removed connections
+local function onPlayerAdded(player)
+    if not player or not player:IsA("Player") then return end
+    
+    -- Handle initial character
+    player.CharacterAdded:Connect(function(character)
+        onCharacterAdded(character, player)
+    end)
+    
+    if player.Character then
+        coroutine.wrap(onCharacterAdded)(player.Character, player)
+    end
+end
+
+local function onPlayerRemoving(player)
+    if not player or not player:IsA("Player") then return end
+    
+    -- Clean up ESP when player leaves
+    if espObjects[player] then
+        for _, obj in pairs(espObjects[player]) do
+            if obj and obj.Parent then
+                obj:Destroy()
+            end
+        end
+        espObjects[player] = nil
+    end
+end
+
+-- Initialize for existing players
+for _, player in ipairs(Players:GetPlayers()) do
+    onPlayerAdded(player)
+end
+
+-- Connect future players
+Players.PlayerAdded:Connect(onPlayerAdded)
+Players.PlayerRemoving:Connect(onPlayerRemoving)
+
+-- Initialize for local player (in case they respawn)
+if Players.LocalPlayer and Players.LocalPlayer.Character then
+    onCharacterAdded(Players.LocalPlayer.Character, Players.LocalPlayer)
+end
+
+-- Create a loop to update ESP information
+local espUpdateLoop = RunService.RenderStepped:Connect(function()
+    if highlightEspEnabled or nameEspEnabled or boxEspEnabled or distanceEspEnabled or healthEspEnabled then
+        updateEspInfo()
+    end
+end)
+
+-- FPS Counter
+local fpsGui = Instance.new("ScreenGui")
+fpsGui.Name = "FPSCounterGui"
+fpsGui.ResetOnSpawn = false
+fpsGui.Enabled = false
+fpsGui.Parent = game:GetService("CoreGui")
+
+local frame = Instance.new("Frame")
+frame.Size = UDim2.new(0, 120, 0, 50)
+frame.Position = UDim2.new(0, 10, 0, 10)
+frame.BackgroundColor3 = Color3.fromRGB(109, 110, 108)
+frame.BackgroundTransparency = 0.3
+frame.BorderSizePixel = 0
+frame.Active = true
+frame.Draggable = true
+frame.Parent = fpsGui
+
+local corner = Instance.new("UICorner")
+corner.CornerRadius = UDim.new(0, 12) -- You can adjust the radius as needed
+corner.Parent = frame
+
+local label = Instance.new("TextLabel")
+label.Size = UDim2.new(1, 0, 1, 0)
+label.BackgroundTransparency = 1
+label.TextColor3 = Color3.new(1, 1, 1)
+label.TextScaled = false
+label.TextSize = 14 -- Adjust this number to make it smaller or larger
+label.Font = Enum.Font.Gotham
+label.Text = "FPS: 0"
+label.Parent = frame
+
+-- FPS Update Loop
+local fps = 0
+local counter = 0
+local lastTick = tick()
+local fpsConnection = nil
+
+local function updateFPS()
+    counter += 1
+    if tick() - lastTick >= 1 then
+        fps = counter
+        counter = 0
+        lastTick = tick()
+        label.Text = "FPS: " .. tostring(math.floor(fps))
+    end
+end
+
+-- Function to toggle FPS counter
+local function toggleFpsCounter(enable)
+    if enable then
+        if not fpsConnection then
+            fpsConnection = RunService.RenderStepped:Connect(updateFPS)
+        end
+        fpsGui.Enabled = true
+    else
+        if fpsConnection then
+            fpsConnection:Disconnect()
+            fpsConnection = nil
+        end
+        fpsGui.Enabled = false
+    end
+end
+
+-- Notify
+local DEFAULT_DURATION = 5
+local DEFAULT_COLOR = Color3.fromRGB(0, 170, 255)
+local NOTIFICATION_WIDTH = 0.35
+local NOTIFICATION_HEIGHT = 70
+local ANIMATION_DURATION = 0.5
+
+-- Setup
+local player = Players.LocalPlayer
+local gui = player:WaitForChild("PlayerGui")
+
+-- Create ScreenGui if it doesn't exist
+local screenGui = gui:FindFirstChild("NotificationGui") or Instance.new("ScreenGui")
+screenGui.Name = "NotificationGui"
+screenGui.Parent = gui
+screenGui.ResetOnSpawn = false
+
+-- Sound system
+local notificationSounds = SoundService:FindFirstChild("NotificationSounds") or Instance.new("Folder")
+notificationSounds.Name = "NotificationSounds"
+notificationSounds.Parent = SoundService
+
+local soundConfigs = {
+    NotificationAppear = {id = 3023237993, volume = 0.2},
+    NotificationDisappear = {id = 18595195017, volume = 0.2},
+    NotificationHover = {id = 7218169592, volume = 0.2},
+    NotificationClick = {id = 177266782, volume = 0.2},
+    NotificationPulse = {id = 10066936758, volume = 0.2}
+}
+
+local function playSound(soundName)
+    local config = soundConfigs[soundName]
+    if not config then return end
+    
+    local sound = Instance.new("Sound")
+    sound.SoundId = "rbxassetid://"..config.id
+    sound.Volume = config.volume
+    sound.Parent = notificationSounds
+    sound:Play()
+    
+    sound.Ended:Connect(function()
+        sound:Destroy()
+    end)
+end
+
+-- Notification queue system
+local notificationQueue = {}
+local isShowingNotification = false
+
+local function showNextNotification()
+    if #notificationQueue == 0 or isShowingNotification then return end
+    isShowingNotification = true
+    
+    local notificationData = table.remove(notificationQueue, 1)
+    showNotification(notificationData.title, notificationData.message, notificationData.duration, notificationData.color)
+end
+
+-- Main notification function
+function showNotification(title, message, duration, color)
+    duration = duration or DEFAULT_DURATION
+    color = color or DEFAULT_COLOR
+
+    -- Play appear sound
+    playSound("NotificationAppear")
+
+    -- Main frame
+    local frame = Instance.new("Frame")
+    frame.Name = "Notification"
+    frame.Size = UDim2.new(NOTIFICATION_WIDTH, 0, 0, NOTIFICATION_HEIGHT)
+    frame.Position = UDim2.new(1, 10, 0.85, 0)
+    frame.AnchorPoint = Vector2.new(1, 0)
+    frame.BackgroundColor3 = Color3.fromRGB(25, 25, 25)
+    frame.BackgroundTransparency = 0.8
+    frame.BorderSizePixel = 0
+    frame.Parent = screenGui
+    frame.ZIndex = 10
+    frame.ClipsDescendants = true
+
+    -- Shadow effect
+    local shadow = Instance.new("ImageLabel")
+    shadow.Name = "Shadow"
+    shadow.Image = "rbxassetid://1316045217"
+    shadow.ImageTransparency = 0.9
+    shadow.ScaleType = Enum.ScaleType.Slice
+    shadow.SliceCenter = Rect.new(10, 10, 118, 118)
+    shadow.Size = UDim2.new(1, 20, 1, 20)
+    shadow.Position = UDim2.new(0, -10, 0, -10)
+    shadow.BackgroundTransparency = 1
+    shadow.ZIndex = frame.ZIndex - 1
+    shadow.Parent = frame
+
+    -- Rounded corners
+    local corner = Instance.new("UICorner")
+    corner.CornerRadius = UDim.new(0, 6)
+    corner.Parent = frame
+
+    -- Accent line with gradient
+    local accent = Instance.new("Frame")
+    accent.Name = "Accent"
+    accent.Size = UDim2.new(0, 0, 0, 2)
+    accent.Position = UDim2.new(0, 0, 0, 0)
+    accent.BackgroundColor3 = color
+    accent.BorderSizePixel = 0
+    accent.ZIndex = frame.ZIndex + 1
+    accent.Parent = frame
+
+    -- Gradient effect for accent
+    local gradient = Instance.new("UIGradient")
+    gradient.Color = ColorSequence.new{
+        ColorSequenceKeypoint.new(0, color),
+        ColorSequenceKeypoint.new(1, Color3.new(color.R * 0.7, color.G * 0.7, color.B * 0.7))
+    }
+    gradient.Rotation = 90
+    gradient.Parent = accent
+
+    -- Title label
+    local titleLabel = Instance.new("TextLabel")
+    titleLabel.Name = "Title"
+    titleLabel.Text = title
+    titleLabel.TextColor3 = Color3.fromRGB(0, 255, 180)
+    titleLabel.TextTransparency = 1
+    titleLabel.TextSize = 16
+    titleLabel.Font = Enum.Font.GothamBold
+    titleLabel.Size = UDim2.new(1, -40, 0, 20)
+    titleLabel.Position = UDim2.new(0, 10, 0, 8)
+    titleLabel.TextXAlignment = Enum.TextXAlignment.Left
+    titleLabel.BackgroundTransparency = 1
+    titleLabel.ZIndex = frame.ZIndex + 1
+    titleLabel.Parent = frame
+
+    -- Message label with text wrapping
+    local messageLabel = Instance.new("TextLabel")
+    messageLabel.Name = "Message"
+    messageLabel.Text = message
+    messageLabel.TextColor3 = Color3.fromRGB(200, 200, 200)
+    messageLabel.TextTransparency = 1
+    messageLabel.TextSize = 14
+    messageLabel.Font = Enum.Font.Gotham
+    messageLabel.Size = UDim2.new(1, -20, 0, 35)
+    messageLabel.Position = UDim2.new(0, 10, 0, 30)
+    messageLabel.TextXAlignment = Enum.TextXAlignment.Left
+    messageLabel.TextYAlignment = Enum.TextYAlignment.Top
+    messageLabel.BackgroundTransparency = 1
+    messageLabel.TextWrapped = true
+    messageLabel.ZIndex = frame.ZIndex + 1
+    messageLabel.Parent = frame
+
+    -- Close button
+    local closeButton = Instance.new("ImageButton")
+    closeButton.Name = "CloseButton"
+    closeButton.Image = "rbxassetid://3926305904"
+    closeButton.ImageRectOffset = Vector2.new(284, 4)
+    closeButton.ImageRectSize = Vector2.new(24, 24)
+    closeButton.ImageColor3 = Color3.fromRGB(180, 180, 180)
+    closeButton.ImageTransparency = 1
+    closeButton.Size = UDim2.new(0, 20, 0, 20)
+    closeButton.Position = UDim2.new(1, -25, 0, 6)
+    closeButton.BackgroundTransparency = 1
+    closeButton.ZIndex = frame.ZIndex + 1
+    closeButton.Parent = frame
+
+    -- Progress bar for time remaining
+    local progressBar = Instance.new("Frame")
+    progressBar.Name = "ProgressBar"
+    progressBar.Size = UDim2.new(1, 0, 0, 2)
+    progressBar.Position = UDim2.new(0, 0, 1, -2)
+    progressBar.BackgroundColor3 = Color3.fromRGB(80, 80, 80)
+    progressBar.BorderSizePixel = 0
+    progressBar.ZIndex = frame.ZIndex + 1
+    progressBar.Parent = frame
+    
+    local progressFill = Instance.new("Frame")
+    progressFill.Name = "ProgressFill"
+    progressFill.Size = UDim2.new(1, 0, 1, 0)
+    progressFill.BackgroundColor3 = color
+    progressFill.BorderSizePixel = 0
+    progressFill.ZIndex = frame.ZIndex + 2
+    progressFill.Parent = progressBar
+    
+    local progressCorner = Instance.new("UICorner")
+    progressCorner.CornerRadius = UDim.new(1, 0)
+    progressCorner.Parent = progressFill
+
+    -- Glow effect
+    local glow = Instance.new("ImageLabel")
+    glow.Name = "Glow"
+    glow.Image = "rbxassetid://5028857084"
+    glow.ImageColor3 = color
+    glow.ImageTransparency = 1
+    glow.ScaleType = Enum.ScaleType.Slice
+    glow.SliceCenter = Rect.new(24, 24, 24, 24)
+    glow.Size = UDim2.new(1, 40, 1, 40)
+    glow.Position = UDim2.new(0.5, -20, 0.5, -20)
+    glow.AnchorPoint = Vector2.new(0.5, 0.5)
+    glow.BackgroundTransparency = 1
+    glow.ZIndex = frame.ZIndex - 1
+    glow.Parent = frame
+
+    -- Ripple effect
+    local ripple = Instance.new("Frame")
+    ripple.Name = "Ripple"
+    ripple.Size = UDim2.new(0, 0, 0, 0)
+    ripple.Position = UDim2.new(0.5, 0, 0.5, 0)
+    ripple.AnchorPoint = Vector2.new(0.5, 0.5)
+    ripple.BackgroundColor3 = Color3.new(1, 1, 1)
+    ripple.BackgroundTransparency = 0.9
+    ripple.ZIndex = frame.ZIndex + 2
+    local rippleCorner = Instance.new("UICorner")
+    rippleCorner.CornerRadius = UDim.new(1, 0)
+    rippleCorner.Parent = ripple
+    ripple.Parent = frame
+
+    -- Pulse animation for accent line
+    local pulseConnection
+    local function startPulse()
+        playSound("NotificationPulse")
+        
+        local targetColor = Color3.new(color.R * 1.2, color.G * 1.2, color.B * 1.2)
+        local pulseIn = TweenService:Create(accent, TweenInfo.new(0.8, Enum.EasingStyle.Quad, Enum.EasingDirection.InOut, -1, true), {
+            BackgroundColor3 = targetColor
+        })
+        pulseIn:Play()
+    end
+
+    -- Animation sequences
+    local function playEntranceAnimations()
+        -- Slide in animation with bounce
+        local slideIn = TweenService:Create(frame, TweenInfo.new(ANIMATION_DURATION, Enum.EasingStyle.Back, Enum.EasingDirection.Out), {
+            Position = UDim2.new(1, -10, 0.85, 0),
+            BackgroundTransparency = 0.1
+        })
+        
+        -- Shadow pop effect
+        local shadowPop = TweenService:Create(shadow, TweenInfo.new(ANIMATION_DURATION * 0.6, Enum.EasingStyle.Back, Enum.EasingDirection.Out), {
+            ImageTransparency = 0.6,
+            Size = UDim2.new(1, 30, 1, 30),
+            Position = UDim2.new(0, -15, 0, -15)
+        })
+        
+        -- Glow effect
+        local glowFadeIn = TweenService:Create(glow, TweenInfo.new(ANIMATION_DURATION, Enum.EasingStyle.Quad), {
+            ImageTransparency = 0.8
+        })
+        
+        -- Ripple effect
+        local rippleExpand = TweenService:Create(ripple, TweenInfo.new(ANIMATION_DURATION * 0.6, Enum.EasingStyle.Quad), {
+            Size = UDim2.new(2, 0, 2, 0),
+            BackgroundTransparency = 1
+        })
+        
+        -- Content fade in
+        local fadeIn = TweenService:Create(titleLabel, TweenInfo.new(ANIMATION_DURATION * 0.8, Enum.EasingStyle.Quad), {
+            TextTransparency = 0
+        })
+        local fadeIn2 = TweenService:Create(messageLabel, TweenInfo.new(ANIMATION_DURATION * 0.8, Enum.EasingStyle.Quad), {
+            TextTransparency = 0
+        })
+        local fadeIn3 = TweenService:Create(closeButton, TweenInfo.new(ANIMATION_DURATION * 0.8, Enum.EasingStyle.Quad), {
+            ImageTransparency = 0
+        })
+        
+        -- Accent line animation
+        local accentGrow = TweenService:Create(accent, TweenInfo.new(ANIMATION_DURATION * 0.8, Enum.EasingStyle.Back, Enum.EasingDirection.Out), {
+            Size = UDim2.new(1, 0, 0, 2)
+        })
+        
+        -- Play animations
+        slideIn:Play()
+        shadowPop:Play()
+        rippleExpand:Play()
+        glowFadeIn:Play()
+        
+        task.wait(ANIMATION_DURATION * 0.1)
+        accentGrow:Play()
+        
+        task.wait(ANIMATION_DURATION * 0.15)
+        fadeIn:Play()
+        
+        task.wait(ANIMATION_DURATION * 0.05)
+        fadeIn2:Play()
+        
+        task.wait(ANIMATION_DURATION * 0.05)
+        fadeIn3:Play()
+        
+        -- Start pulse animation after everything is shown
+        task.delay(ANIMATION_DURATION * 0.6, startPulse)
+    end
+
+    -- Hover effects
+    local function setupHoverEffects()
+        local hoverScale = 1.02
+        
+        frame.MouseEnter:Connect(function()
+            playSound("NotificationHover")
+            
+            TweenService:Create(frame, TweenInfo.new(0.2), {
+                Size = UDim2.new(NOTIFICATION_WIDTH * hoverScale, 0, 0, NOTIFICATION_HEIGHT * hoverScale)
+            }):Play()
+            TweenService:Create(shadow, TweenInfo.new(0.2), {
+                Size = UDim2.new(1, 30 * hoverScale, 1, 30 * hoverScale),
+                Position = UDim2.new(0, -15 * hoverScale, 0, -15 * hoverScale)
+            }):Play()
+        end)
+        
+        frame.MouseLeave:Connect(function()
+            TweenService:Create(frame, TweenInfo.new(0.2), {
+                Size = UDim2.new(NOTIFICATION_WIDTH, 0, 0, NOTIFICATION_HEIGHT)
+            }):Play()
+            TweenService:Create(shadow, TweenInfo.new(0.2), {
+                Size = UDim2.new(1, 30, 1, 30),
+                Position = UDim2.new(0, -15, 0, -15)
+            }):Play()
+        end)
+
+        -- Close button hover effects
+        closeButton.MouseEnter:Connect(function()
+            playSound("NotificationHover")
+            
+            TweenService:Create(closeButton, TweenInfo.new(0.1), {
+                ImageColor3 = Color3.new(1, 1, 1),
+                Rotation = 90,
+                Size = UDim2.new(0, 22, 0, 22),
+                Position = UDim2.new(1, -26, 0, 5)
+            }):Play()
+        end)
+        
+        closeButton.MouseLeave:Connect(function()
+            TweenService:Create(closeButton, TweenInfo.new(0.1), {
+                ImageColor3 = Color3.fromRGB(180, 180, 180),
+                Rotation = 0,
+                Size = UDim2.new(0, 20, 0, 20),
+                Position = UDim2.new(1, -25, 0, 6)
+            }):Play()
+        end)
+    end
+
+    -- Close functionality
+    local closing = false
+    local function close()
+        if closing then return end
+        closing = true
+        
+        playSound("NotificationDisappear")
+        
+        -- Stop pulse animation
+        if pulseConnection then
+            pulseConnection:Disconnect()
+        end
+        
+        -- Create close ripple
+        local closeRipple = ripple:Clone()
+        closeRipple.BackgroundTransparency = 0.95
+        closeRipple.Size = UDim2.new(0, 0, 0, 0)
+        closeRipple.Position = UDim2.new(
+            UserInputService:GetMouseLocation().X / frame.AbsoluteSize.X,
+            0,
+            (UserInputService:GetMouseLocation().Y - frame.AbsolutePosition.Y) / frame.AbsoluteSize.Y,
+            0
+        )
+        closeRipple.AnchorPoint = Vector2.new(0.5, 0.5)
+        closeRipple.Parent = frame
+        
+        local rippleOut = TweenService:Create(closeRipple, TweenInfo.new(0.6, Enum.EasingStyle.Quad), {
+            Size = UDim2.new(2, 0, 2, 0),
+            BackgroundTransparency = 1
+        })
+        rippleOut:Play()
+        rippleOut.Completed:Connect(function()
+            closeRipple:Destroy()
+        end)
+        
+        -- Shake effect
+        local shakeOffset = 5
+        for i = 1, 3 do
+            TweenService:Create(frame, TweenInfo.new(0.05, Enum.EasingStyle.Linear), {
+                Position = UDim2.new(1, -10 + shakeOffset, 0.85, 0)
+            }):Play()
+            task.wait(0.05)
+            TweenService:Create(frame, TweenInfo.new(0.05, Enum.EasingStyle.Linear), {
+                Position = UDim2.new(1, -10 - shakeOffset, 0.85, 0)
+            }):Play()
+            task.wait(0.05)
+            shakeOffset = shakeOffset * 0.6
+        end
+        
+        -- Fade out content
+        local fadeOut = TweenService:Create(titleLabel, TweenInfo.new(0.2, Enum.EasingStyle.Quad), {
+            TextTransparency = 1
+        })
+        local fadeOut2 = TweenService:Create(messageLabel, TweenInfo.new(0.2, Enum.EasingStyle.Quad), {
+            TextTransparency = 1
+        })
+        local fadeOut3 = TweenService:Create(closeButton, TweenInfo.new(0.2, Enum.EasingStyle.Quad), {
+            ImageTransparency = 1
+        })
+        
+        fadeOut:Play()
+        fadeOut2:Play()
+        fadeOut3:Play()
+        
+        -- Slide out frame
+        task.wait(0.15)
+        local slideOut = TweenService:Create(frame, TweenInfo.new(0.3, Enum.EasingStyle.Back, Enum.EasingDirection.In), {
+            Position = UDim2.new(1, 10, 0.85, 0),
+            BackgroundTransparency = 0.8
+        })
+        
+        -- Shrink accent line
+        local accentShrink = TweenService:Create(accent, TweenInfo.new(0.2, Enum.EasingStyle.Quad), {
+            Size = UDim2.new(0, 0, 0, 2)
+        })
+        
+        -- Shadow fade out
+        local shadowFadeOut = TweenService:Create(shadow, TweenInfo.new(0.3, Enum.EasingStyle.Quad), {
+            ImageTransparency = 0.9,
+            Size = UDim2.new(1, 20, 1, 20),
+            Position = UDim2.new(0, -10, 0, -10)
+        })
+        
+        -- Glow fade out
+        local glowFadeOut = TweenService:Create(glow, TweenInfo.new(0.3, Enum.EasingStyle.Quad), {
+            ImageTransparency = 1
+        })
+        
+        slideOut:Play()
+        accentShrink:Play()
+        shadowFadeOut:Play()
+        glowFadeOut:Play()
+        
+        slideOut.Completed:Wait()
+        frame:Destroy()
+        isShowingNotification = false
+        showNextNotification()
+    end
+
+    closeButton.MouseButton1Click:Connect(function()
+        playSound("NotificationClick")
+        close()
+    end)
+
+    -- Progress bar animation
+    local progressTween = TweenService:Create(progressFill, TweenInfo.new(duration, Enum.EasingStyle.Linear), {
+        Size = UDim2.new(0, 0, 1, 0)
+    })
+    progressTween:Play()
+
+    -- Auto-close after duration
+    task.delay(duration, function()
+        close()
+    end)
+
+    -- Play entrance animations
+    playEntranceAnimations()
+    setupHoverEffects()
+end
+
+-- Queue system function
+function queueNotification(title, message, duration, color)
+    table.insert(notificationQueue, {
+        title = title,
+        message = message,
+        duration = duration or DEFAULT_DURATION,
+        color = color or DEFAULT_COLOR
+    })
+    
+    if not isShowingNotification then
+        showNextNotification()
+    end
+end
+
+-- Example usage
+queueNotification("Made By Hmmm5650", "Script Started", 3, Color3.fromRGB(161, 165, 162))
+
+local Luna = loadstring(game:HttpGet("https://raw.githubusercontent.com/Nebula-Softworks/Luna-Interface-Suite/refs/heads/main/source.lua", true))()
+local Window = Luna:CreateWindow({
+    Name = "SilverWare🍴",
+    Subtitle = "(v2.4) [ Only For Mobile ] ", -- VZ
+    LogoID = "98445694743887",
+    LoadingEnabled = false,
+    LoadingTitle = "Starting SilverWare🍴",
+    LoadingSubtitle = "[ Ver, 1.3 ]",
+    ConfigSettings = {
+        RootFolder = nil,
+        ConfigFolder = "SliverWareConfig"
+    },
+    KeySystem = false
+})
+
+Window:CreateHomeTab({
+	SupportedExecutors = {}, -- A Table Of Executors Your Script Supports. Add strings of the executor names for each executor.
+	DiscordInvite = "I don't have discord", -- The Discord Invite Link. Do Not Include discord.gg/ | Only Include the code.
+	Icon = 1, -- By Default, The Icon Is The Home Icon. If You would like to change it to dashboard, replace the interger with 2
+})
+
+
+local Tab = Window:CreateTab({
+	Name = "Information",
+	Icon = "info",
+	ImageSource = "Material",
+	ShowTitle = true -- This will determine whether the big header text in the tab will show
+})
+
+Tab:CreateSection("[ Delta - SUPPORTED ]")
+
+local Label = Tab:CreateLabel({
+	Text = "[ Due To Robloxs New AntiCheat You Might Get Banned From Using Our Scripts ]",
+	Style = 3 -- Luna Labels Have 3 Styles : A Basic Label, A Green Information Label and A Red Warning Label. Look At The Following Image For More Details
+})
+
+local Label = Tab:CreateLabel({
+	Text = "[ YT: @hmmm5650 ]",
+	Style = 2 -- Luna Labels Have 3 Styles : A Basic Label, A Green Information Label and A Red Warning Label. Look At The Following Image For More Details
+})
+
+local Paragraph = Tab:CreateParagraph({
+	Title = " [ About ]",
+	Text = "SilverWare Or SW For Short Is A Free No KeySytem Exploit And it Comes With Many Features\nEnough To Destroy Ur Opponents"
+})
+
+
+local Paragraph = Tab:CreateParagraph({
+	Title = " [ UpdateLog ]",
+	Text = "[ Bug Fixes 96 ]\nFixes And Enhancements Fixed\nFixed Protection Tab Errors\nUpdated The Farming Tab"
+})
+
+task.wait(0.5)
+
+local Tab = Window:CreateTab({
+    Name = "FpsBooster",
+    Icon = "build",
+    ImageSource = "Material",
+    ShowTitle = true
+})
+
+-- In your Toggle callback:
+local Toggle = Tab:CreateToggle({
+    Name = "Show FPSCounter",
+    Description = nil,
+    CurrentValue = false,
+    Callback = function(Value)
+        if Value then
+            fpsGui.Enabled = true
+            -- Only create a new connection if one doesn't exist
+            if not fpsConnection then
+                fpsConnection = RunService.RenderStepped:Connect(updateFPS)
+            end
+        else
+            fpsGui.Enabled = false
+            -- Disconnect the connection if it exists
+            if fpsConnection then
+                fpsConnection:Disconnect()
+                fpsConnection = nil
+            end
+        end
+    end
+}, "FpsCounterToggle")
+
+Tab:CreateDivider()
+
+-- Main AntiLag Button
+local Button = Tab:CreateButton({
+    Name = "AntiLag",
+    Description = "Optimizes game performance with multiple tweaks",
+    Callback = function()
+        loadstring(game:HttpGet("https://pastebin.com/raw/zJztwUg1", true))()
+    end
+})
+
+local Button = Tab:CreateButton({
+    Name = "AntiLag 2",
+    Description = "Optimizes game performance with multiple tweaks",
+    Callback = function()
+        loadstring(game:HttpGet("https://pastebin.com/raw/8YZ2cc6V"))()
+    end
+})
+
+Tab:CreateDivider()
+
+local Button = Tab:CreateButton({
+    Name = "Memory Cleaner",
+    Description = "Depends on you're exec.",
+    Callback = function()
+        game:GetService("StarterGui"):SetCore("DevConsoleVisible",true)
+        local function formatMemory(amount)
+            if amount < 1024 then
+                return amount .. " KB"
+            elseif amount < 1024 * 1024 then
+                return math.floor(amount / 1024) .. " MB"
+            else
+                return math.floor(amount / (1024 * 1024)) .. " GB"
+            end
+        end
+
+        warn("[Memory Optimizer] Scanning memory...")
+        task.wait(0.3)
+        warn("[Memory Optimizer] Closing unused connections...")
+        task.wait(0.1)
+        warn("[Memory Optimizer] Clearing cached assets...")
+        task.wait(0.1)
+        warn("[Memory Optimizer] Optimizing garbage collection...")
+        task.wait(0.2)
+        memCleaner()
+    end
+})
+
+-- Remove Fog Toggle
+local RemoveFogToggle = Tab:CreateToggle({
+    Name = "Remove Fog",
+    Description = "Disables all fog effects in the game",
+    CurrentValue = false,
+    Callback = function(Value)
+        if Value then
+            game:GetService("Lighting").FogEnd = 9e9
+            game:GetService("Lighting").FogStart = 9e9
+        else
+            game:GetService("Lighting").FogEnd = 1000
+            game:GetService("Lighting").FogStart = 0
+        end
+    end
+})
+
+-- Low Quality Textures Toggle
+local LowQualityToggle = Tab:CreateToggle({
+    Name = "Low Quality Textures",
+    Description = "Reduces texture quality for better performance",
+    CurrentValue = false,
+    Callback = function(Value)
+        if Value then
+            settings().Rendering.QualityLevel = 1
+        else
+            settings().Rendering.QualityLevel = 21
+        end
+    end
+})
+
+-- Disable Shadows Toggle
+local ShadowsToggle = Tab:CreateToggle({
+    Name = "Disable Shadows",
+    Description = "Turns off all shadow effects",
+    CurrentValue = false,
+    Callback = function(Value)
+        if Value then
+            game:GetService("Lighting").GlobalShadows = false
+        else
+            game:GetService("Lighting").GlobalShadows = true
+        end
+    end
+})
+
+-- Remove Particles Toggle
+local ParticlesToggle = Tab:CreateToggle({
+    Name = "Remove Particles",
+    Description = "Disables all particle effects",
+    CurrentValue = false,
+    Callback = function(Value)
+        for _, v in pairs(workspace:GetDescendants()) do
+            if v:IsA("ParticleEmitter") then
+                v.Enabled = not Value
+            end
+        end
+    end
+})
+
+-- Disable Terrain Water Toggle
+local WaterToggle = Tab:CreateToggle({
+    Name = "Disable Terrain Water",
+    Description = "Removes water effects from terrain",
+    CurrentValue = false,
+    Callback = function(Value)
+        workspace.Terrain.WaterWaveSize = Value and 0 or 0.1
+        workspace.Terrain.WaterWaveSpeed = Value and 0 or 10
+        workspace.Terrain.WaterReflectance = Value and 0 or 0.5
+    end
+})
+
+-- Reduce Render Distance Toggle
+local RenderDistanceToggle = Tab:CreateToggle({
+    Name = "Reduce Render Distance",
+    Description = "Lowers how far you can see objects",
+    CurrentValue = false,
+    Callback = function(Value)
+        local camera = workspace.CurrentCamera
+        if camera and camera:FindFirstChild("CameraSubject") then
+            camera.CameraSubject.Distance = Value and 50 or 500
+        end
+    end
+})
+
+-- Disable Post-Processing Toggle
+local PostProcessingToggle = Tab:CreateToggle({
+    Name = "Disable Post-Processing",
+    Description = "Turns off bloom, depth of field, etc.",
+    CurrentValue = false,
+    Callback = function(Value)
+        local lighting = game:GetService("Lighting")
+        
+        local function toggleEffect(effectName)
+            local effect = lighting:FindFirstChild(effectName)
+            if effect then
+                effect.Enabled = not Value
+            end
+        end
+
+        toggleEffect("Bloom")
+        toggleEffect("Blur")
+        toggleEffect("ColorCorrection")
+        toggleEffect("DepthOfField")
+        toggleEffect("SunRays")
+    end
+})
+
+Tab:CreateDivider()
+
+local Button = Tab:CreateButton({
+	Name = "Reset FpsCap",
+	Description = "sets FpsCap to 60", -- Creates A Description For Users to know what the button does (looks bad if you use it all the time),
+    	Callback = function()
+         setfpscap(60)
+    	end
+})
+
+local Slider = Tab:CreateSlider({
+	Name = "SetFpsCap",
+	Range = {0, 9000}, -- The Minimum And Maximum Values Respectively
+	Increment = 5, -- Basically The Changing Value/Rounding Off
+	CurrentValue = 60, -- The Starting Value
+    	Callback = function(Value)
+       	 setfpscap(Value)
+    	end
+}, "FpsCapSlider") -- A flag is the identifier for the configuration file, make sure every element has a different flag if you're using configuration saving to ensure no overlaps
+
+-- Create the Visuals tab
+local Tab = Window:CreateTab({
+    Name = "Visuals",
+    Icon = "visibility",
+    ImageSource = "Material",
+    ShowTitle = true
+})
+
+local HighlightToggle = Tab:CreateToggle({
+    Name = "Highlight ESP",
+    Description = "Highlights player characters",
+    CurrentValue = highlightEspEnabled,
+    Callback = function(Value)
+        highlightEspEnabled = Value
+        toggleEsp()
+    end
+}, "HighlightToggle")
+
+local NameToggle = Tab:CreateToggle({
+    Name = "Name ESP",
+    Description = "Shows player names above characters",
+    CurrentValue = nameEspEnabled,
+    Callback = function(Value)
+        nameEspEnabled = Value
+        toggleEsp()
+    end
+}, "NameToggle")
+
+local BoxToggle = Tab:CreateToggle({
+    Name = "Box ESP",
+    Description = "Draws boxes around player characters",
+    CurrentValue = boxEspEnabled,
+    Callback = function(Value)
+        boxEspEnabled = Value
+        toggleEsp()
+    end
+}, "BoxToggle")
+
+local DistanceToggle = Tab:CreateToggle({
+    Name = "Distance ESP",
+    Description = "Shows distance to players",
+    CurrentValue = distanceEspEnabled,
+    Callback = function(Value)
+        distanceEspEnabled = Value
+        toggleEsp()
+    end
+}, "DistanceToggle")
+
+local HealthToggle = Tab:CreateToggle({
+    Name = "Health ESP",
+    Description = "Shows health and changes color based on health",
+    CurrentValue = healthEspEnabled,
+    Callback = function(Value)
+        healthEspEnabled = Value
+        toggleEsp()
+    end
+}, "HealthToggle")
+
+Tab:CreateDivider()
+
+local ColorPicker = Tab:CreateColorPicker({
+    Name = "ESP Color",
+    Description = "Color for ESP elements",
+    Color = espColor,
+    Callback = function(Value)
+        updateEspColor(Value)
+    end
+}, "EspColorPicker")
+
+local MaxDistanceInput = Tab:CreateInput({
+    Name = "Max Distance",
+    Description = "Maximum distance to show ESP (in studs)",
+    PlaceholderText = tostring(maxDistance),
+    CurrentValue = tostring(maxDistance),
+    Numeric = true,
+    Callback = function(Text)
+        local num = tonumber(Text)
+        if num then
+            maxDistance = num
+            toggleEsp()
+        end
+    end
+}, "MaxDistanceInput")
+
+local ClearEspButton = Tab:CreateButton({
+    Name = "Clear All ESP",
+    Description = "Removes all ESP elements",
+    Callback = function()
+        clearEsp()
+    end
+}, "ClearEspButton")
+
+local FOVEnabled = false
+local CurrentFOV = 70
+
+local Toggle = Tab:CreateToggle({
+    Name = "Fov",
+    Description = "Toggle to enable/disable FOV modification",
+    CurrentValue = FOVEnabled,
+    Callback = function(Value)
+        FOVEnabled = Value
+        -- Apply current FOV when toggled on
+        if FOVEnabled then
+            game.Workspace.CurrentCamera.FieldOfView = CurrentFOV
+        else
+            -- Reset to default FOV when toggled off
+            game.Workspace.CurrentCamera.FieldOfView = 70
+        end
+    end
+}, "FOVToggle")
+
+local Slider = Tab:CreateSlider({
+    Name = "FOV Slider",
+    Range = {0, 120},
+    Increment = 1,
+    CurrentValue = CurrentFOV,
+    Callback = function(Value)
+        CurrentFOV = Value
+        -- Only update FOV if the toggle is enabled
+        if FOVEnabled then
+            game.Workspace.CurrentCamera.FieldOfView = CurrentFOV
+        end
+    end
+}, "FOVSlider")
+
+local Tab = Window:CreateTab({
+    Name = "Aimlock",
+    Icon = "gps_fixed",
+    ImageSource = "Material",
+    ShowTitle = true
+})
+
+local Toggle = Tab:CreateToggle({
+    Name = "showAimlock",
+    Description = nil,
+    CurrentValue = false,
+    Callback = function(Value)
+        -- Store references to all the UI elements
+        if not _G.AimlockUI then
+            _G.AimlockUI = {
+                Inputs = {},
+                ColorPicker = nil,
+                ScreenGui = nil,
+                AimAssist = {
+                    Active = false,
+                    Smoothness = 0.3,
+                    FOVSize = 150,
+                    MaxDistance = 1000,
+                    TargetColor = Color3.fromRGB(255, 0, 0),
+                    TargetTransparency = 0.7,
+                    HighlightTarget = false,
+                    CurrentHighlight = nil,
+                    Enable360 = false
+                }
+            }
+        end
+        
+        if Value then
+            -- Create the aimlock GUI if it doesn't exist
+            if not _G.AimlockUI.ScreenGui or not _G.AimlockUI.ScreenGui.Parent then
+                -- Get required services
+                local Players = game:GetService("Players")
+                local RunService = game:GetService("RunService")
+                local UserInputService = game:GetService("UserInputService")
+                local TweenService = game:GetService("TweenService")
+
+                -- Get local player
+                local localPlayer = Players.LocalPlayer
+                local playerGui = localPlayer:WaitForChild("PlayerGui")
+
+                -- Create UI elements
+                local screenGui = Instance.new("ScreenGui")
+                screenGui.Name = "AimLockUiLuau"
+                screenGui.IgnoreGuiInset = true
+                screenGui.ResetOnSpawn = false
+                screenGui.Parent = playerGui
+                _G.AimlockUI.ScreenGui = screenGui
+
+                -- Control panel
+                local controlPanel = Instance.new("Frame")
+                controlPanel.Size = UDim2.new(0, 120, 0, 50)
+                controlPanel.Position = UDim2.new(0, 60, 0, 60)
+                controlPanel.BackgroundColor3 = Color3.fromRGB(109, 110, 108)
+                controlPanel.BackgroundTransparency = 0.3
+                controlPanel.Active = true
+                controlPanel.Parent = screenGui
+
+                -- Round corners
+                local corner = Instance.new("UICorner")
+                corner.CornerRadius = UDim.new(0.3, 0)
+                corner.Parent = controlPanel
+
+                -- Toggle button
+                local toggleButton = Instance.new("TextButton")
+                toggleButton.Size = UDim2.new(1, 0, 1, 0)
+                toggleButton.Text = "AimLock: OFF"
+                toggleButton.BackgroundTransparency = 1
+                toggleButton.TextColor3 = Color3.fromRGB(255, 255, 255)
+                toggleButton.TextSize = 14
+                toggleButton.Font = Enum.Font.Gotham
+                toggleButton.Parent = controlPanel
+
+                -- Highlight when active
+                local outline = Instance.new("UIStroke")
+                outline.Thickness = 2
+                outline.Color = Color3.fromRGB(0, 255, 0)
+                outline.Enabled = false
+                outline.Parent = controlPanel
+
+                -- Target indicator
+                local targetIndicator = Instance.new("Frame")
+                targetIndicator.Size = UDim2.new(0, _G.AimlockUI.AimAssist.FOVSize, 0, _G.AimlockUI.AimAssist.FOVSize)
+                targetIndicator.Position = UDim2.new(0.5, 0, 0.5, 0)
+                targetIndicator.AnchorPoint = Vector2.new(0.5, 0.5)
+                targetIndicator.BackgroundTransparency = 1
+                targetIndicator.Parent = screenGui
+
+                local targetOutline = Instance.new("UIStroke")
+                targetOutline.Thickness = 2
+                targetOutline.Color = _G.AimlockUI.AimAssist.TargetColor
+                targetOutline.Transparency = _G.AimlockUI.AimAssist.TargetTransparency
+                targetOutline.Parent = targetIndicator
+
+                local targetCorner = Instance.new("UICorner")
+                targetCorner.CornerRadius = UDim.new(1, 0)
+                targetCorner.Parent = targetIndicator
+
+                -- Function to highlight a player
+                local function highlightPlayer(character, enable)
+                    if not character then return end
+                    
+                    if _G.AimlockUI.AimAssist.CurrentHighlight and _G.AimlockUI.AimAssist.CurrentHighlight.Parent then
+                        local existingHighlight = _G.AimlockUI.AimAssist.CurrentHighlight:FindFirstChild("AimlockHighlight")
+                        if existingHighlight then
+                            existingHighlight:Destroy()
+                        end
+                    end
+                    
+                    if enable then
+                        local highlight = Instance.new("Highlight")
+                        highlight.Name = "AimlockHighlight"
+                        highlight.FillColor = Color3.fromRGB(255, 0, 0)
+                        highlight.OutlineColor = Color3.fromRGB(255, 255, 0)
+                        highlight.FillTransparency = 0.5
+                        highlight.OutlineTransparency = 0
+                        highlight.Parent = character
+                        
+                        _G.AimlockUI.AimAssist.CurrentHighlight = character
+                    else
+                        _G.AimlockUI.AimAssist.CurrentHighlight = nil
+                    end
+                end
+
+                -- Toggle functionality
+                local function updateToggle()
+                    outline.Enabled = _G.AimlockUI.AimAssist.Active
+                    toggleButton.Text = _G.AimlockUI.AimAssist.Active and "AimLock: ON" or "AimLock: OFF"
+                    
+                    local tweenInfo = TweenInfo.new(0.2, Enum.EasingStyle.Quad, Enum.EasingDirection.Out)
+                    local tween = TweenService:Create(
+                        controlPanel,
+                        tweenInfo,
+                        {BackgroundColor3 = _G.AimlockUI.AimAssist.Active and Color3.fromRGB(40, 40, 40) or Color3.fromRGB(30, 30, 30)}
+                    )
+                    tween:Play()
+                end
+
+                toggleButton.MouseButton1Click:Connect(function()
+                    _G.AimlockUI.AimAssist.Active = not _G.AimlockUI.AimAssist.Active
+                    updateToggle()
+                end)
+
+                -- Enemy check function
+                local function isEnemyForAimAssist(player)
+                    if player == localPlayer then return false end
+                    if not player.Character then return false end
+                    
+                    if game:GetService("Teams") and #game:GetService("Teams"):GetTeams() > 1 then
+                        local localTeam = localPlayer.Team
+                        local playerTeam = player.Team
+                        return localTeam ~= nil and playerTeam ~= nil and localTeam ~= playerTeam
+                    else
+                        return true
+                    end
+                end
+
+                -- Visibility check function
+                local function isVisible(targetPosition, character)
+                    local localCharacter = localPlayer.Character
+                    if not localCharacter then return false end
+                    
+                    local rootPart = localCharacter:FindFirstChild("HumanoidRootPart")
+                    if not rootPart then return false end
+                    
+                    local direction = (targetPosition - rootPart.Position).Unit
+                    local ray = Ray.new(rootPart.Position + direction * 2, direction * _G.AimlockUI.AimAssist.MaxDistance)
+                    
+                    local ignoreList = {localCharacter}
+                    local hitPart, hitPosition = workspace:FindPartOnRayWithIgnoreList(ray, ignoreList)
+                    
+                    if hitPart then
+                        local hitCharacter = hitPart:FindFirstAncestorOfClass("Model")
+                        return hitCharacter == character
+                    end
+                    return false
+                end
+
+                -- Target finding function with proper FOV checking
+                local function findBestTarget()
+                    local bestTarget = nil
+                    local closestDistance = math.huge
+                    local localCharacter = localPlayer.Character
+                    
+                    if not localCharacter then return nil end
+                    
+                    local rootPart = localCharacter:FindFirstChild("HumanoidRootPart")
+                    if not rootPart then return nil end
+                    
+                    local camera = workspace.CurrentCamera
+                    if not camera then return nil end
+                    
+                    local targetCenter = targetIndicator.AbsolutePosition + (targetIndicator.AbsoluteSize / 2)
+                    local targetRadius = _G.AimlockUI.AimAssist.FOVSize / 2
+                    
+                    for _, player in pairs(Players:GetPlayers()) do
+                        if isEnemyForAimAssist(player) and player.Character then
+                            local character = player.Character
+                            local humanoid = character:FindFirstChildOfClass("Humanoid")
+                            if humanoid and humanoid.Health <= 0 then continue end
+                            
+                            local enemyRoot = character:FindFirstChild("HumanoidRootPart")
+                            local head = character:FindFirstChild("Head")
+                            
+                            if enemyRoot then
+                                local distanceFromPlayer = (rootPart.Position - enemyRoot.Position).Magnitude
+                                
+                                if _G.AimlockUI.AimAssist.Enable360 then
+                                    if distanceFromPlayer <= _G.AimlockUI.AimAssist.MaxDistance 
+                                       and distanceFromPlayer < closestDistance 
+                                       and isVisible(enemyRoot.Position, character) then
+                                        
+                                        closestDistance = distanceFromPlayer
+                                        bestTarget = {
+                                            player = player,
+                                            root = enemyRoot,
+                                            head = head,
+                                            character = character
+                                        }
+                                    end
+                                else
+                                    local screenPosition, onScreen = camera:WorldToScreenPoint(enemyRoot.Position)
+                                    if onScreen then
+                                        local distanceFromCenter = (Vector2.new(screenPosition.X, screenPosition.Y) - targetCenter).Magnitude
+                                        
+                                        if distanceFromCenter <= targetRadius 
+                                           and distanceFromPlayer <= _G.AimlockUI.AimAssist.MaxDistance 
+                                           and distanceFromCenter < closestDistance 
+                                           and isVisible(enemyRoot.Position, character) then
+                                            
+                                            closestDistance = distanceFromCenter
+                                            bestTarget = {
+                                                player = player,
+                                                root = enemyRoot,
+                                                head = head,
+                                                character = character
+                                            }
+                                        end
+                                    end
+                                end
+                            end
+                        end
+                    end
+                    
+                    return bestTarget
+                end
+
+                -- Aim assist functionality
+                local aimAssistConnection
+                aimAssistConnection = RunService.RenderStepped:Connect(function()
+                    if _G.AimlockUI.AimAssist.Active then
+                        local target = findBestTarget()
+                        
+                        if target and target.root then
+                            local camera = workspace.CurrentCamera
+                            if camera then
+                                local targetPosition = target.head and target.head.Position or target.root.Position
+                                local cameraPosition = camera.CFrame.Position
+                                local targetCFrame = CFrame.new(cameraPosition, targetPosition)
+                                
+                                local lerpValue = _G.AimlockUI.AimAssist.Smoothness
+                                if lerpValue >= 1 then
+                                    lerpValue = 1
+                                end
+                                
+                                camera.CFrame = camera.CFrame:Lerp(targetCFrame, lerpValue)
+                                
+                                targetOutline.Color = Color3.fromRGB(0, 255, 0)
+                                
+                                if _G.AimlockUI.AimAssist.HighlightTarget then
+                                    highlightPlayer(target.character, true)
+                                end
+                            end
+                        else
+                            targetOutline.Color = _G.AimlockUI.AimAssist.TargetColor
+                            
+                            if _G.AimlockUI.AimAssist.HighlightTarget then
+                                highlightPlayer(_G.AimlockUI.AimAssist.CurrentHighlight, false)
+                            end
+                        end
+                    else
+                        if _G.AimlockUI.AimAssist.HighlightTarget and _G.AimlockUI.AimAssist.CurrentHighlight then
+                            highlightPlayer(_G.AimlockUI.AimAssist.CurrentHighlight, false)
+                        end
+                    end
+                end)
+
+                -- Draggable UI functionality
+                local isDragging = false
+                local dragStartPosition = Vector2.new(0, 0)
+                local dragStartOffset = UDim2.new(0, 0, 0, 0)
+
+                controlPanel.InputBegan:Connect(function(input)
+                    if input.UserInputType == Enum.UserInputType.MouseButton1 then
+                        isDragging = true
+                        dragStartPosition = input.Position
+                        dragStartOffset = controlPanel.Position
+                        controlPanel.BackgroundTransparency = 0.2
+                    end
+                end)
+
+                controlPanel.InputChanged:Connect(function(input)
+                    if input.UserInputType == Enum.UserInputType.MouseMovement and isDragging then
+                        local dragDelta = input.Position - dragStartPosition
+                        controlPanel.Position = UDim2.new(
+                            dragStartOffset.X.Scale, 
+                            dragStartOffset.X.Offset + dragDelta.X, 
+                            dragStartOffset.Y.Scale, 
+                            dragStartOffset.Y.Offset + dragDelta.Y
+                        )
+                    end
+                end)
+
+                UserInputService.InputEnded:Connect(function(input)
+                    if input.UserInputType == Enum.UserInputType.MouseButton1 then
+                        isDragging = false
+                        controlPanel.BackgroundTransparency = 0.3
+                    end
+                end)
+
+                -- Cleanup when character respawns
+                localPlayer.CharacterAdded:Connect(function()
+                    if not screenGui:IsDescendantOf(playerGui) then
+                        screenGui.Parent = playerGui
+                    end
+                end)
+
+                -- Store references
+                _G.AimlockUI.AimAssist.Connection = aimAssistConnection
+                _G.AimlockUI.AimAssist.TargetIndicator = targetIndicator
+                _G.AimlockUI.AimAssist.TargetOutline = targetOutline
+                _G.AimlockUI.AimAssist.UpdateToggle = updateToggle
+                _G.AimlockUI.AimAssist.HighlightPlayer = highlightPlayer
+            else
+                _G.AimlockUI.ScreenGui.Enabled = true
+                _G.AimlockUI.AimAssist.UpdateToggle()
+            end
+        else
+            if _G.AimlockUI.ScreenGui then
+                _G.AimlockUI.ScreenGui.Enabled = false
+            end
+            
+            if _G.AimlockUI and _G.AimlockUI.AimAssist and _G.AimlockUI.AimAssist.CurrentHighlight then
+                _G.AimlockUI.AimAssist.HighlightPlayer(_G.AimlockUI.AimAssist.CurrentHighlight, false)
+            end
+        end
+    end
+}, "AimLockToggle")
+
+local Toggle = Tab:CreateToggle({
+    Name = "360 Aimlock",
+    Description = "Aimlock in all directions (less precise but safer)",
+    CurrentValue = false,
+    Callback = function(Value)
+        if _G.AimlockUI then
+            _G.AimlockUI.AimAssist.Enable360 = Value
+            if _G.AimlockUI.AimAssist.Active then
+                _G.AimlockUI.AimAssist.UpdateToggle()
+            end
+        end
+    end
+}, "360AimlockToggle")
+
+Tab:CreateDivider()
+
+local HighlightToggle = Tab:CreateToggle({
+    Name = "Highlight Target",
+    Description = "Highlights the player when targeted",
+    CurrentValue = false,
+    Callback = function(Value)
+        if _G.AimlockUI then
+            _G.AimlockUI.AimAssist.HighlightTarget = Value
+        end
+    end
+}, "HighlightTargetToggle")
+
+local Input1 = Tab:CreateInput({
+    Name = "Fov Size",
+    Description = "Circle size (20-999)",
+    PlaceholderText = tostring(_G.AimlockUI and _G.AimlockUI.AimAssist.FOVSize or 150),
+    CurrentValue = "",
+    Numeric = true,
+    MaxCharacters = 4,
+    Enter = true,
+    Callback = function(Text)
+        if _G.AimlockUI and _G.AimlockUI.AimAssist and tonumber(Text) then
+            local newSize = tonumber(Text)
+            if newSize > 10 and newSize < 1000 then
+                _G.AimlockUI.AimAssist.FOVSize = newSize
+                if _G.AimlockUI.AimAssist.TargetIndicator then
+                    _G.AimlockUI.AimAssist.TargetIndicator.Size = UDim2.new(0, newSize, 0, newSize)
+                end
+            end
+        end
+    end
+}, "Input1")
+
+local Input2 = Tab:CreateInput({
+    Name = "Fov Transparency",
+    Description = "0-1 (0 = solid, 1 = invisible)",
+    PlaceholderText = tostring(_G.AimlockUI and _G.AimlockUI.AimAssist.TargetTransparency or 0.7),
+    CurrentValue = "",
+    Numeric = true,
+    MaxCharacters = 3,
+    Enter = true,
+    Callback = function(Text)
+        if _G.AimlockUI and _G.AimlockUI.AimAssist and tonumber(Text) then
+            local transparency = tonumber(Text)
+            if transparency >= 0 and transparency <= 1 then
+                _G.AimlockUI.AimAssist.TargetTransparency = transparency
+                if _G.AimlockUI.AimAssist.TargetOutline then
+                    _G.AimlockUI.AimAssist.TargetOutline.Transparency = transparency
+                    _G.AimlockUI.AimAssist.TargetOutline.Enabled = transparency < 1
+                end
+            end
+        end
+    end
+}, "Input2")
+
+local Input3 = Tab:CreateInput({
+    Name = "Aimlock Strength",
+    Description = "0.1-1 (1 = instant lock)",
+    PlaceholderText = tostring(_G.AimlockUI and _G.AimlockUI.AimAssist.Smoothness or 0.3),
+    CurrentValue = "",
+    Numeric = true,
+    MaxCharacters = 4,
+    Enter = true,
+    Callback = function(Text)
+        if _G.AimlockUI and _G.AimlockUI.AimAssist and tonumber(Text) then
+            local strength = tonumber(Text)
+            if strength >= 0.1 and strength <= 1 then
+                _G.AimlockUI.AimAssist.Smoothness = strength
+            end
+        end
+    end
+}, "Input3")
+
+Tab:CreateDivider()
+
+local ColorPicker = Tab:CreateColorPicker({
+    Name = "FovColor",
+    Color = _G.AimlockUI and _G.AimlockUI.AimAssist.TargetColor or Color3.fromRGB(255, 0, 0),
+    Flag = "AimlockColorPicker",
+    Callback = function(Value)
+        if _G.AimlockUI and _G.AimlockUI.AimAssist then
+            _G.AimlockUI.AimAssist.TargetColor = Value
+            if _G.AimlockUI.AimAssist.TargetOutline then
+                _G.AimlockUI.AimAssist.TargetOutline.Color = Value
+            end
+        end
+    end
+}, "AimlockFovColorPicker")
+
+local Tab = Window:CreateTab({
+    Name = "Hitbox Expansion",
+    Icon = "view_in_ar",
+    ImageSource = "Material",
+    ShowTitle = true
+})
+
+-- Hitbox Variable
+local localPlayer = Players.LocalPlayer
+while not localPlayer do
+    task.wait()
+    localPlayer = Players.LocalPlayer
+end
+
+-- Configuration variables
+local hitboxSize = 10
+local hitboxTransparency = 0.5
+local hitboxEnabled = false
+local hitboxType = "Both" -- "Both", "Only Hrp", "Only Head"
+local hitboxColor = Color3.fromRGB(255, 0, 0)
+
+-- Team detection function
+local function isEnemy(player)
+    if player == localPlayer then return false end
+    
+    local teams = game:GetService("Teams"):GetTeams()
+    if #teams > 1 then
+        if localPlayer.Team == nil or player.Team == nil then
+            return true
+        end
+        return localPlayer.Team ~= player.Team
+    else
+        return true
+    end
+end
+
+-- Apply hitbox to a character
+local function applyHitbox(character)
+    if not character or not hitboxEnabled then return end
+    
+    local player = Players:GetPlayerFromCharacter(character)
+    if player and player == localPlayer then return end
+    
+    local humanoid = character:FindFirstChildOfClass("Humanoid")
+    if humanoid and humanoid.Health <= 0 then return end
+    
+    local isR15 = humanoid and humanoid.RigType == Enum.HumanoidRigType.R15
+    
+    -- Store original sizes if not already stored
+    local function storeOriginalSize(part)
+        if not part:FindFirstChild("OriginalSize") then
+            local originalSize = Instance.new("Vector3Value")
+            originalSize.Name = "OriginalSize"
+            originalSize.Value = part.Size
+            originalSize.Parent = part
+        end
+    end
+
+    -- Apply hitbox to a specific part
+    local function applyToPart(part)
+        if not part then return end
+        storeOriginalSize(part)
+        part.Size = Vector3.new(hitboxSize, hitboxSize, hitboxSize)
+        part.Transparency = hitboxTransparency
+        part.BrickColor = BrickColor.new(hitboxColor)
+        part.Material = Enum.Material.ForceField
+        part.CanCollide = false
+    end
+
+    -- Apply based on selected hitbox type
+    if hitboxType == "Both" or hitboxType == "Only Hrp" then
+        local rootPart = character:FindFirstChild("HumanoidRootPart") or character:FindFirstChild("UpperTorso")
+        applyToPart(rootPart)
+        
+        if isR15 and hitboxType == "Both" then
+            local lowerTorso = character:FindFirstChild("LowerTorso")
+            applyToPart(lowerTorso)
+        end
+    end
+    
+    if hitboxType == "Both" or hitboxType == "Only Head" then
+        local head = character:FindFirstChild("Head")
+        if head then
+            applyToPart(head)
+        end
+    end
+    
+    -- For R15, adjust other parts if "Both" is selected
+    if isR15 and hitboxType == "Both" then
+        local partsToAdjust = {"UpperTorso", "LowerTorso", "LeftUpperArm", "RightUpperArm", "LeftUpperLeg", "RightUpperLeg"}
+        for _, partName in ipairs(partsToAdjust) do
+            local part = character:FindFirstChild(partName)
+            applyToPart(part)
+        end
+    end
+end
+
+-- Reset hitbox to original size
+local function resetHitbox(character)
+    if not character then return end
+    
+    local player = Players:GetPlayerFromCharacter(character)
+    if player and player == localPlayer then return end
+    
+    local function resetPart(part)
+        if part and part:FindFirstChild("OriginalSize") then
+            part.Size = part.OriginalSize.Value
+            part.Transparency = 1
+            part.BrickColor = BrickColor.new("Medium stone grey")
+            part.Material = Enum.Material.Plastic
+            part.CanCollide = true
+        end
+    end
+
+    -- Reset all parts regardless of current hitbox type
+    local rootPart = character:FindFirstChild("HumanoidRootPart") or character:FindFirstChild("UpperTorso")
+    resetPart(rootPart)
+    
+    local head = character:FindFirstChild("Head")
+    resetPart(head)
+    
+    local humanoid = character:FindFirstChildOfClass("Humanoid")
+    local isR15 = humanoid and humanoid.RigType == Enum.HumanoidRigType.R15
+    
+    if isR15 then
+        local partsToReset = {"LowerTorso", "UpperTorso", "LeftUpperArm", "RightUpperArm", "LeftUpperLeg", "RightUpperLeg"}
+        for _, partName in ipairs(partsToReset) do
+            local part = character:FindFirstChild(partName)
+            resetPart(part)
+        end
+    end
+end
+
+-- Apply hitboxes to all players
+local function applyHitboxesToAllPlayers()
+    for _, player in ipairs(Players:GetPlayers()) do
+        if isEnemy(player) and player.Character then
+            applyHitbox(player.Character)
+        end
+    end
+end
+
+-- Reset hitboxes on all players
+local function resetHitboxesOnAllPlayers()
+    for _, player in ipairs(Players:GetPlayers()) do
+        if player.Character then
+            resetHitbox(player.Character)
+        end
+    end
+end
+
+-- Hitbox toggle system
+local hitboxCoroutine
+local function toggleHitboxes(enabled)
+    hitboxEnabled = enabled
+    
+    if enabled then
+        applyHitboxesToAllPlayers()
+        
+        if not hitboxCoroutine then
+            hitboxCoroutine = coroutine.create(function()
+                while hitboxEnabled and task.wait(0.5) do
+                    applyHitboxesToAllPlayers()
+                end
+            end)
+            coroutine.resume(hitboxCoroutine)
+        end
+    else
+        if hitboxCoroutine then
+            coroutine.close(hitboxCoroutine)
+            hitboxCoroutine = nil
+        end
+        resetHitboxesOnAllPlayers()
+    end
+end
+
+-- Player tracking system
+local function trackPlayer(player)
+    if not player then return end
+    
+    if isEnemy(player) then
+        player.CharacterAdded:Connect(function(character)
+            task.wait(1) -- Wait for character to fully load
+            
+            local humanoid = character:WaitForChild("Humanoid")
+            
+            local function updateHitboxState()
+                if hitboxEnabled then
+                    if humanoid.Health > 0 then
+                        applyHitbox(character)
+                    else
+                        resetHitbox(character)
+                    end
+                end
+            end
+            
+            updateHitboxState()
+            humanoid.HealthChanged:Connect(updateHitboxState)
+        end)
+        
+        if player.Character then
+            local humanoid = player.Character:FindFirstChildOfClass("Humanoid")
+            if humanoid then
+                if hitboxEnabled then
+                    if humanoid.Health > 0 then
+                        applyHitbox(player.Character)
+                    else
+                        resetHitbox(player.Character)
+                    end
+                end
+            end
+        end
+    end
+end
+
+-- Initialize tracking for all players
+for _, player in ipairs(Players:GetPlayers()) do
+    trackPlayer(player)
+end
+
+-- Player added/removed events
+Players.PlayerAdded:Connect(trackPlayer)
+
+local Label = Tab:CreateLabel({
+	Text = "[ May Lag On Low-Ends ]",
+	Style = 2 -- Luna Labels Have 3 Styles : A Basic Label, A Green Information Label and A Red Warning Label. Look At The Following Image For More Details
+})
+
+local Label = Tab:CreateLabel({
+	Text = "[ This May Get You Banned ]",
+	Style = 3 -- Luna Labels Have 3 Styles : A Basic Label, A Green Information Label and A Red Warning Label. Look At The Following Image For More Details
+})
+
+-- UI Integration
+local Toggle = Tab:CreateToggle({
+    Name = "Start HBE",
+    Description = nil,
+    CurrentValue = false,
+    Callback = function(Value)
+        toggleHitboxes(Value)
+    end
+}, "HbeToggle")
+
+Tab:CreateDivider()
+
+local Input = Tab:CreateInput({
+    Name = "Hitbox Size (textbox)",
+    Description = nil,
+    PlaceholderText = "10",
+    CurrentValue = tostring(hitboxSize),
+    Numeric = true,
+    MaxCharacters = 3,
+    Enter = true,
+    Callback = function(Text)
+        local newSize = tonumber(Text)
+        if newSize and newSize >= 1 and newSize <= 50 then
+            hitboxSize = newSize
+            if hitboxEnabled then
+                applyHitboxesToAllPlayers()
+            end
+        end
+    end
+}, "HbeSizeInput")
+
+local Slider = Tab:CreateSlider({
+    Name = "Hitbox Size (Slider)",
+    Range = {1, 50},
+    Increment = 1,
+    CurrentValue = hitboxSize,
+    Callback = function(Value)
+        hitboxSize = Value
+        if hitboxEnabled then
+            applyHitboxesToAllPlayers()
+        end
+    end
+}, "HibeSizeSlider")
+
+local Input = Tab:CreateInput({
+    Name = "Hitbox Transparency",
+    Description = nil,
+    PlaceholderText = "0.9",
+    CurrentValue = tostring(hitboxTransparency),
+    Numeric = true,
+    MaxCharacters = 3,
+    Enter = true,
+    Callback = function(Text)
+        local newTransparency = tonumber(Text)
+        if newTransparency and newTransparency >= 0 and newTransparency <= 1 then
+            hitboxTransparency = newTransparency
+            if hitboxEnabled then
+                applyHitboxesToAllPlayers()
+            end
+        end
+    end
+}, "hbetransparencyInput")
+
+Tab:CreateDivider()
+
+local ColorPicker = Tab:CreateColorPicker({
+    Name = "Hitbox Color",
+    Color = hitboxColor,
+    Callback = function(Value)
+        hitboxColor = Value
+        if hitboxEnabled then
+            applyHitboxesToAllPlayers()
+        end
+    end
+}, "hbeColorPicker")
+
+-- Cleanup function
+local function cleanup()
+    resetHitboxesOnAllPlayers()
+    if hitboxCoroutine then
+        coroutine.close(hitboxCoroutine)
+    end
+end
+
+-- Store cleanup function
+getgenv().HitbloxCleanup = cleanup
+
+local Tab = Window:CreateTab({
+	Name = "Trolling",
+	Icon = "sentiment_very_satisfied",
+	ImageSource = "Material",
+	ShowTitle = true -- This will determine whether the big header text in the tab will show
+})
+
+local Button = Tab:CreateButton({
+	Name = "LoopKill",
+	Description = "Needs a sword/gun for it to work", -- Creates A Description For Users to know what the button does (looks bad if you use it all the time),
+    	Callback = function()
+         loadstring(game:HttpGet("https://raw.githubusercontent.com/OBFhm5650lol/2Loopkillsbnensnsns3838/refs/heads/main/Lkobf", true))()
+    	end
+})
+
+-- Service declarations
+local Players = game:GetService("Players")
+local RunService = game:GetService("RunService")
+local LocalPlayer = Players.LocalPlayer
+
+-- Assuming Window is created elsewhere, if not you'll need to define it
+local Window = Window or {
+    CreateTab = function(tabInfo)
+        -- Mock implementation if Window isn't defined
+        return {
+            CreateLabel = function(labelInfo) return {} end,
+            CreateToggle = function(toggleInfo) return {} end
+        }
+    end
+}
+
+local Tab = Window:CreateTab({
+    Name = "Farming",
+    Icon = "eco",
+    ImageSource = "Material",
+    ShowTitle = true
+})
+
+local Label = Tab:CreateLabel({
+    Text = "[ This May Get You Flinged ]",
+    Style = 2
+})
+
+-- Variables to track player switching and shaking
+local currentTarget = nil
+local shakeConnection = nil
+local lastSwitchTime = 0
+local switchDelay = 0.5 -- Delay in seconds between target switches
+local hardShootActive = false
+local shakeOffset = Vector3.new(0, 0, 0)
+
+-- Connection variables for toggle loops
+local aboveToggleLoop = nil
+local underToggleLoop = nil
+local behindToggleLoop = nil
+
+local function isEnemy(player)
+    -- Check if teams are enabled in the game
+    if game:GetService("Teams"):GetTeams() ~= nil and #game:GetService("Teams"):GetTeams() > 0 then
+        -- Teams exist, check if player is on different team
+        return LocalPlayer.Team ~= nil and player.Team ~= nil and LocalPlayer.Team ~= player.Team
+    else
+        -- No teams, everyone is an enemy except local player
+        return player ~= LocalPlayer
+    end
+end
+
+-- Function to get the closest alive enemy
+local function getClosestEnemy()
+    local character = LocalPlayer.Character
+    if not character or not character:FindFirstChild("HumanoidRootPart") then return nil end
+    
+    local root = character.HumanoidRootPart
+    local closestPlayer = nil
+    local closestDistance = math.huge
+    
+    for _, player in ipairs(Players:GetPlayers()) do
+        if isEnemy(player) and player.Character and player.Character:FindFirstChild("Humanoid") 
+           and player.Character.Humanoid.Health > 0 and player.Character:FindFirstChild("HumanoidRootPart") then
+            local distance = (root.Position - player.Character.HumanoidRootPart.Position).Magnitude
+            if distance < closestDistance then
+                closestDistance = distance
+                closestPlayer = player
+            end
+        end
+    end
+    
+    return closestPlayer
+end
+
+-- Function to shake the local player's character
+local function shakeCharacter(intensity)
+    if shakeConnection then shakeConnection:Disconnect() end
+    
+    shakeConnection = RunService.Heartbeat:Connect(function()
+        local character = LocalPlayer.Character
+        if not character or not character:FindFirstChild("HumanoidRootPart") then 
+            if shakeConnection then
+                shakeConnection:Disconnect()
+                shakeConnection = nil
+            end
+            return 
+        end
+        
+        -- Generate new random offset
+        shakeOffset = Vector3.new(
+            (math.random() * 2 - 1) * intensity,
+            (math.random() * 2 - 1) * intensity,
+            (math.random() * 2 - 1) * intensity
+        )
+    end)
+end
+
+-- Function to apply both teleport and shake effects
+local function applyTeleportWithShake(basePosition, lookAtPosition)
+    local character = LocalPlayer.Character
+    if not character or not character:FindFirstChild("HumanoidRootPart") then return end
+    
+    local root = character.HumanoidRootPart
+    local finalPosition = basePosition + (hardShootActive and shakeOffset or Vector3.new(0, 0, 0))
+    
+    if lookAtPosition then
+        root.CFrame = CFrame.new(finalPosition, lookAtPosition)
+    else
+        root.CFrame = CFrame.new(finalPosition)
+    end
+end
+
+-- Hard Shoot toggle
+local hardShootToggle = Tab:CreateToggle({
+    Name = "Hard 2 Shoot",
+    Description = "Shakes your character making it hard to shoot (REC, AIMLOCK)",
+    CurrentValue = false,
+    Callback = function(Value)
+        hardShootActive = Value
+        if Value then
+            shakeCharacter(5) -- Adjust intensity as needed
+        else
+            if shakeConnection then
+                shakeConnection:Disconnect()
+                shakeConnection = nil
+            end
+            shakeOffset = Vector3.new(0, 0, 0)
+        end
+    end
+})
+
+-- Toggle for teleporting above enemies
+local aboveToggle = Tab:CreateToggle({
+    Name = "TpKill (Above)",
+    Description = "teleports you 20 studs above enemies",
+    CurrentValue = false,
+    Callback = function(Value)
+        if Value then
+            -- Toggle on
+            aboveToggleLoop = RunService.Heartbeat:Connect(function()
+                local character = LocalPlayer.Character
+                if character and character:FindFirstChild("HumanoidRootPart") then
+                    local now = tick()
+                    
+                    -- Check if current target is dead or it's time to switch
+                    if not currentTarget or not currentTarget.Character or 
+                       not currentTarget.Character:FindFirstChild("Humanoid") or 
+                       currentTarget.Character.Humanoid.Health <= 0 or
+                       (now - lastSwitchTime) > switchDelay then
+                        
+                        currentTarget = getClosestEnemy()
+                        lastSwitchTime = now
+                    end
+                    
+                    -- Teleport above the current target
+                    if currentTarget and currentTarget.Character and currentTarget.Character:FindFirstChild("HumanoidRootPart") then
+                        local enemyRoot = currentTarget.Character.HumanoidRootPart
+                        applyTeleportWithShake(enemyRoot.CFrame.Position + Vector3.new(0, 20, 0), enemyRoot.Position)
+                    end
+                end
+            end)
+        else
+            -- Toggle off
+            if aboveToggleLoop then
+                aboveToggleLoop:Disconnect()
+                aboveToggleLoop = nil
+            end
+            currentTarget = nil
+        end
+    end
+})
+
+-- Toggle for teleporting underground (under enemies)
+local underToggle = Tab:CreateToggle({
+    Name = "TpKill (Below)",
+    Description = "teleports you 6 studs below enemies",
+    CurrentValue = false,
+    Callback = function(Value)
+        if Value then
+            -- Toggle on
+            underToggleLoop = RunService.Heartbeat:Connect(function()
+                local character = LocalPlayer.Character
+                if character and character:FindFirstChild("HumanoidRootPart") then
+                    local now = tick()
+                    
+                    -- Check if current target is dead or it's time to switch
+                    if not currentTarget or not currentTarget.Character or 
+                       not currentTarget.Character:FindFirstChild("Humanoid") or 
+                       currentTarget.Character.Humanoid.Health <= 0 or
+                       (now - lastSwitchTime) > switchDelay then
+                        
+                        currentTarget = getClosestEnemy()
+                        lastSwitchTime = now
+                    end
+                    
+                    -- Teleport UNDER the current target (6 studs below)
+                    if currentTarget and currentTarget.Character and currentTarget.Character:FindFirstChild("HumanoidRootPart") then
+                        local enemyRoot = currentTarget.Character.HumanoidRootPart
+                        applyTeleportWithShake(enemyRoot.CFrame.Position - Vector3.new(0, 6, 0), enemyRoot.Position)
+                    end
+                end
+            end)
+        else
+            -- Toggle off
+            if underToggleLoop then
+                underToggleLoop:Disconnect()
+                underToggleLoop = nil
+            end
+            currentTarget = nil
+        end
+    end
+})
+
+-- Toggle for teleporting behind enemies (with wall detection)
+local behindToggle = Tab:CreateToggle({
+    Name = "TpKill (Behind)",
+    Description = "teleports you 5 studs behind enemies",
+    CurrentValue = false,
+    Callback = function(Value)
+        if Value then
+            -- Toggle on
+            behindToggleLoop = RunService.Heartbeat:Connect(function()
+                local character = LocalPlayer.Character
+                if character and character:FindFirstChild("HumanoidRootPart") then
+                    local now = tick()
+                    
+                    -- Check if current target is dead or it's time to switch
+                    if not currentTarget or not currentTarget.Character or 
+                       not currentTarget.Character:FindFirstChild("Humanoid") or 
+                       currentTarget.Character.Humanoid.Health <= 0 or
+                       (now - lastSwitchTime) > switchDelay then
+                        
+                        currentTarget = getClosestEnemy()
+                        lastSwitchTime = now
+                    end
+                    
+                    if currentTarget and currentTarget.Character and currentTarget.Character:FindFirstChild("HumanoidRootPart") then
+                        local enemyRoot = currentTarget.Character.HumanoidRootPart
+                        local enemyCFrame = enemyRoot.CFrame
+                        
+                        -- Calculate position 5 studs behind the enemy
+                        local behindPosition = enemyCFrame.Position - (enemyCFrame.LookVector * 5)
+                        
+                        -- Raycast to check for walls
+                        local raycastParams = RaycastParams.new()
+                        raycastParams.FilterDescendantsInstances = {character, currentTarget.Character}
+                        raycastParams.FilterType = Enum.RaycastFilterType.Blacklist
+                        
+                        local raycastResult = workspace:Raycast(
+                            enemyCFrame.Position,
+                            (behindPosition - enemyCFrame.Position).Unit * 50,
+                            raycastParams
+                        )
+                        
+                        -- Adjust position if wall is detected
+                        if raycastResult then
+                            -- Move slightly in front of the wall
+                            behindPosition = raycastResult.Position + (enemyCFrame.LookVector * 1.5)
+                        end
+                        
+                        -- Teleport behind the enemy (with possible wall adjustment)
+                        applyTeleportWithShake(behindPosition, enemyCFrame.Position)
+                    end
+                end
+            end)
+        else
+            -- Toggle off
+            if behindToggleLoop then
+                behindToggleLoop:Disconnect()
+                behindToggleLoop = nil
+            end
+            currentTarget = nil
+        end
+    end
+})
+
+local Tab = Window:CreateTab({
+	Name = "Misc",
+	Icon = "dashboard",
+	ImageSource = "Material",
+	ShowTitle = true -- This will determine whether the big header text in the tab will show
+})
+
+local Button = Tab:CreateButton({
+	Name = "Shiftlock",
+	Description = "ShiftLock Button", -- Creates A Description For Users to know what the button does (looks bad if you use it all the time),
+    	Callback = function()
+         loadstring(game:HttpGet("https://github.com/ltseverydayyou/uuuuuuu/blob/main/shiftlock?raw=true"))()
+    	end
+})
+
+Tab:CreateSection("We Maybe did Remove the Hurtbox Expansion Tab For This Reason")
+
+local Button = Tab:CreateButton({
+	Name = "SwordBlox",
+	Description = "Our New Script :D", -- Creates A Description For Users to know what the button does (looks bad if you use it all the time),
+    	Callback = function()
+         loadstring(game:HttpGet("https://raw.githubusercontent.com/hm5650/SwordBlox/refs/heads/main/SB", true))()
+    	end
+})
+
+Tab:CreateDivider()
+Tab:CreateSection("Sum cool scripts that I found from walmart")
+
+local Button = Tab:CreateButton({
+	Name = "Duckhub🐤 [Key]",
+	Description = "Hub", -- Creates A Description For Users to know what the button does (looks bad if you use it all the time),
+    	Callback = function()
+         loadstring(game:HttpGet('https://raw.githubusercontent.com/HexFG/duckhub/refs/heads/main/loader.lua'))()
+    	end
+})
+
+local Button = Tab:CreateButton({
+	Name = "TbaoHub🐶",
+	Description = "Grow A Garden", -- Creates A Description For Users to know what the button does (looks bad if you use it all the time),
+    	Callback = function()
+         loadstring(game:HttpGet("https://raw.githubusercontent.com/tbao143/game/refs/heads/main/TbaoHubGrowGarden"))()
+    	end
+})
+
+local Button = Tab:CreateButton({
+	Name = "SkullHub💀",
+	Description = "DeadRails", -- Creates A Description For Users to know what the button does (looks bad if you use it all the time),
+    	Callback = function()
+         loadstring(game:HttpGet('https://skullhub.xyz/loader.lua'))()
+    	end
+})
 
 local Tab = Window:CreateTab({
     Name = "Protection",
@@ -2776,5 +5244,7 @@ do
     })
 end
 
+
+end)
 
 end)
