@@ -490,27 +490,6 @@ local function toggleFpsCounter(enable)
     end
 end
 
--- [[ THIS IS A SNIPPET ]] --
-
--- Import the Library
-local fnl = loadstring(game:HttpGetAsync 'https://raw.githubusercontent.com/Code1Tech/utils/main/notification.lua')()
-
--- Make a Notification function
-function notify(title, text, duration)
-  title = title or "Notification"
-  text = text or "No text provided."
-  duration = duration or 5
-  
-  fnl:MakeNotification({
-    Title = title,
-    Text = text,
-    Duration = duration
-  })
-end
-
--- Use the func
-notify("Script Loaded", "ℹ️: Script Made By @hmmm5650", 3)
-
 local Luna = loadstring(game:HttpGet("https://raw.githubusercontent.com/hm5650/LunarUi/refs/heads/main/Lunar", true))()
 local Window = Luna:CreateWindow({
     Name = "SilverWare🍴",
